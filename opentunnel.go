@@ -5,13 +5,36 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 )
 
+func getSSHKey() string {
+	homeDir := os.Getenv("USERPROFILE")
+	if homeDir == "" {
+		homeDir = os.Getenv("HOME")
+	}
+
+	keyPath := filepath.Join(homeDir, ".ssh", "id_ed25519.pub")
+
+	data, err := os.ReadFile(keyPath)
+	if err == nil {
+		return string(data[:len(data)-1])
+	}
+
+	return ""
+}
+
 func main() {
 	user := "tunneluser"
-	sshKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com"
 	minutes := 60
+	sshKey := getSSHKey()
+
+	if sshKey == "" {
+		fmt.Println("[-] Error: Could not find SSH key in ~/.ssh/id_ed25519.pub")
+		fmt.Println("    Please generate one with: ssh-keygen -t ed25519")
+		os.Exit(1)
+	}
 
 	args := os.Args[1:]
 	for i := 0; i < len(args); i++ {

@@ -2,12 +2,6 @@
 
 Connect to remote servers behind NAT/firewall using reverse SSH tunnels.
 
-## Your SSH Key
-
-```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com
-```
-
 ---
 
 # Basic Usage (Without Skill)
@@ -30,7 +24,7 @@ Or with custom SSH key:
 The script will output a curl command. Run it on your **remote server**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- <URL> 60 root --daemon "ssh-ed25519 ..."
+curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- <URL> 60 root --daemon "<YOUR_SSH_PUBLIC_KEY>"
 ```
 
 ## Step 3: Get Tunnel Info
@@ -58,10 +52,12 @@ When user wants to connect to a remote server behind NAT:
 ### Step 1: Ask Options
 
 Ask user:
-- Username? (default: tunneluser)
+- Username? (options: "tunneluser", "root")
 - Minutes? (default: 60)
 
 ### Step 2: Execute Binary
+
+The binary automatically reads your SSH key from `~/.ssh/id_ed25519.pub`.
 
 ```powershell
 powershell.exe -Command "& 'C:\Users\Julian\.config\opencode\skills\opentunnel-connect\opentunnel.exe' --user USERNAME --minutes MINUTES"
@@ -69,11 +65,13 @@ powershell.exe -Command "& 'C:\Users\Julian\.config\opencode\skills\opentunnel-c
 
 ### Step 3: User Runs Command
 
-Give the curl command to user to run on remote server.
+Give curl command to user to run on **remote server**.
 
 ### Step 4: Get Tunnel Info
 
 User provides: `bore.pub:PORT`
+
+The remote server outputs: `Tunnel: bore.pub:12345`
 
 ### Step 5: Connect with ezssh
 
@@ -99,6 +97,7 @@ ezssh_ssh_execute({
 
 # Troubleshooting
 
+- **SSH key not found**: Run `ssh-keygen -t ed25519` to generate one
 - **SSH key not working**: Run the curl command on remote - it adds the key automatically
 - **Connection refused**: Wait a few seconds for bore to start on remote
 - **Tunnel expired**: Run the curl command again on remote
