@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -99,16 +98,14 @@ func main() {
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	fmt.Printf("[+] Remote connected: %s@%s:%d\n", credential.User, credential.Host, credential.Port)
-
-	sshConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", credential.Host, credential.Port))
-	if err != nil {
-		fmt.Printf("[-] Failed to connect: %v\n", err)
-		os.Exit(1)
+	fmt.Printf("\n[+] Remote connected: %s@%s:%d\n", credential.User, credential.Host, credential.Port)
+	fmt.Println("\n--- CREDENTIALS ---")
+	fmt.Printf("HOST=%s\n", credential.Host)
+	fmt.Printf("PORT=%d\n", credential.Port)
+	fmt.Printf("USER=%s\n", credential.User)
+	fmt.Printf("AUTHTYPE=%s\n", credential.AuthType)
+	if credential.Password != "" && credential.Password != "key-based" {
+		fmt.Printf("PASSWORD=%s\n", credential.Password)
 	}
-	defer sshConn.Close()
-
-	fmt.Println("[+] SSH tunnel established!")
-
-	io.Copy(os.Stdout, sshConn)
+	fmt.Println("--- END CREDENTIALS ---")
 }
