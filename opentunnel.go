@@ -25,6 +25,7 @@ var credential Credential
 func main() {
 	user := "tunneluser"
 	sshKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com"
+	minutes := 60
 
 	args := os.Args[1:]
 	for i := 0; i < len(args); i++ {
@@ -33,6 +34,9 @@ func main() {
 			i++
 		} else if args[i] == "--ssh-key" && i+1 < len(args) {
 			sshKey = args[i+1]
+			i++
+		} else if args[i] == "--minutes" && i+1 < len(args) {
+			fmt.Sscanf(args[i+1], "%d", &minutes)
 			i++
 		}
 	}
@@ -87,7 +91,7 @@ func main() {
 	fmt.Printf("Tunnel: %s\n", tunnelURL)
 	fmt.Println("\nCOPY AND RUN ON REMOTE SERVER:")
 	fmt.Println("========================================")
-	fmt.Printf("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- %s 60 %s \"%s\"\n", tunnelURL, user, sshKey)
+	fmt.Printf("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- %s %d %s \"%s\"\n", tunnelURL, minutes, user, sshKey)
 	fmt.Println("========================================")
 	fmt.Println("\nWaiting for remote connection...")
 
