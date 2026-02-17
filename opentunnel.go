@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 func getSSHKey() string {
@@ -34,7 +35,7 @@ func getSSHKey() string {
 
 	data, err := os.ReadFile(keyPath)
 	if err == nil {
-		return string(data[:len(data)-1])
+		return strings.TrimSpace(string(data))
 	}
 
 	return ""
