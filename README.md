@@ -1,88 +1,104 @@
-# OpenTunnel - AI Agent Setup
+# OpenTunnel Connect
 
-This file contains all the instructions AI agents need to set up and use OpenTunnel Connect.
-
-## Overview
-
-OpenTunnel creates SSH tunnels to remote servers using:
-- **localhost.run** - For local webhook (on your machine)
-- **bore** - For SSH tunnel (on remote server)
-- **SSH Key** - For passwordless authentication
-
-## Setup (One-Time)
-
-### Step 1: Get Your SSH Public Key
-
-```bash
-cat ~/.ssh/id_ed25519.pub
-```
-
-If you don't have one, create it:
-```bash
-ssh-keygen -t ed25519 -C "your-email@example.com"
-```
-
-### Step 2: Install Dependencies
-
-```bash
-cd skills/opentunnel-connect && npm install
-```
-
-### Step 3: Configure ezssh-mcp (Optional)
-
-If you want to use ezssh-mcp for SSH connections, add to `~/.config/opencode/opencode.json`:
-```json
-{
-  "mcp": {
-    "ezssh": {
-      "command": "npx",
-      "args": ["ezssh-mcp"]
-    }
-  }
-}
-```
-
-## Usage Flow
-
-When user wants to connect to a remote server:
-
-### Step 1: Run the Script
-
-```bash
-cd skills/opentunnel-connect/scripts && node run.js
-```
-
-### Step 2: Give Command to User
-
-The script will output a command like:
-
-```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- URL MINUTES USER "SSH_KEY"
-```
-
-### Step 3: Automatic Connection
-
-The script will:
-1. Wait for credentials from the remote server
-2. Connect automatically via SSH using your key
-3. Show the connection result
+Connect to remote servers behind NAT/firewall using reverse SSH tunnels.
 
 ## Your SSH Key
 
-Your public key (needed for automatic login):
 ```
 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com
 ```
 
-## Troubleshooting
+---
 
-- **SSH key not working**: Make sure the remote server has your key in `~/.ssh/authorized_keys`
-- **Tunnel not established**: Check that bore is installed on remote server
-- **Credentials not received**: Verify the webhook URL is correct
+# Basic Usage (Without Skill)
 
-## Files
+## Step 1: Start Local Tunnel
 
-- `scripts/run.js` - Main entry point for AI agents
-- `scripts/server.js` - Webhook server
-- `scripts/remote.sh` - Remote server script
-- `skills/opentunnel-connect/SKILL.md` - Skill definition
+Run on your **local machine** (Windows):
+
+```powershell
+.\opentunnel.exe --user root --minutes 60
+```
+
+Or with custom SSH key:
+```powershell
+.\opentunnel.exe --user root --minutes 60 --ssh-key "ssh-ed25519 ..."
+```
+
+## Step 2: Run Command on Remote Server
+
+The script will output a curl command. Run it on your **remote server**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- <URL> 60 root --daemon "ssh-ed25519 ..."
+```
+
+## Step 3: Get Tunnel Info
+
+The remote server will output:
+```
+Tunnel: bore.pub:12345
+```
+
+## Step 4: Connect
+
+Copy that info and connect:
+```bash
+ssh -i ~/.ssh/id_ed25519 root@bore.pub -p 12345
+```
+
+---
+
+# OpenCode Skill Usage
+
+## For AI Agents
+
+When user wants to connect to a remote server behind NAT:
+
+### Step 1: Ask Options
+
+Ask user:
+- Username? (default: tunneluser)
+- Minutes? (default: 60)
+
+### Step 2: Execute Binary
+
+```powershell
+powershell.exe -Command "& 'C:\Users\Julian\.config\opencode\skills\opentunnel-connect\opentunnel.exe' --user USERNAME --minutes MINUTES"
+```
+
+### Step 3: User Runs Command
+
+Give the curl command to user to run on remote server.
+
+### Step 4: Get Tunnel Info
+
+User provides: `bore.pub:PORT`
+
+### Step 5: Connect with ezssh
+
+```javascript
+ezssh_ssh_execute({
+  command: "hostname && uptime",
+  hosts: ["bore.pub"],
+  port: PORT,
+  username: "USERNAME",
+  privateKeyPath: "C:/Users/Julian/.ssh/id_ed25519"
+})
+```
+
+---
+
+# Files
+
+- `opentunnel.exe` - Standalone binary (Windows, no dependencies)
+- `opentunnel.go` - Source code
+- `skills/opentunnel-connect/scripts/remote.sh` - Remote server script
+
+---
+
+# Troubleshooting
+
+- **SSH key not working**: Run the curl command on remote - it adds the key automatically
+- **Connection refused**: Wait a few seconds for bore to start on remote
+- **Tunnel expired**: Run the curl command again on remote

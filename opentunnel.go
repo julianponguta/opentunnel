@@ -2,25 +2,11 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
-	"time"
 )
-
-type Credential struct {
-	User     string `json:"user"`
-	Password string `json:"password"`
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	AuthType string `json:"auth_type"`
-}
-
-var credential Credential
 
 func main() {
 	user := "tunneluser"
@@ -44,16 +30,6 @@ func main() {
 	fmt.Println("========================================")
 	fmt.Println("OpenTunnel Connect")
 	fmt.Println("========================================")
-
-	go func() {
-		http.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
-			body, _ := io.ReadAll(r.Body)
-			json.Unmarshal(body, &credential)
-			fmt.Println("[+] Credentials received!")
-			w.Write([]byte("ok"))
-		})
-		http.ListenAndServe(":3000", nil)
-	}()
 
 	tunnelCmd := exec.Command("ssh", "-R", "80:localhost:3000", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=60", "-o", "LogLevel=ERROR", "nokey@localhost.run")
 
@@ -88,28 +64,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Tunnel: %s\n", tunnelURL)
-	fmt.Println("\nCOPY AND RUN ON REMOTE SERVER:")
+	fmt.Printf("\n[OK] Tunnel: %s\n", tunnelURL)
+	fmt.Println("\n========================================")
+	fmt.Println("RUN THIS COMMAND ON REMOTE SERVER:")
 	fmt.Println("========================================")
 	fmt.Printf("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- %s %d %s --daemon \"%s\"\n", tunnelURL, minutes, user, sshKey)
 	fmt.Println("========================================")
-	fmt.Println("\nWaiting for remote connection...")
+	fmt.Println("\n[OK] After running, the remote will give you:")
+	fmt.Println("    Tunnel: bore.pub:PORT")
+	fmt.Println("\n[INPUT] Enter the tunnel info from remote (e.g., bore.pub:12345):")
 
-	for {
-		if credential.Host != "" {
-			break
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
+	reader := bufio.NewReader(os.Stdin)
+	tunnelInfo, _ := reader.ReadString('\n')
+	tunnelInfo = tunnelInfo[:len(tunnelInfo)-1]
 
-	fmt.Printf("\n[+] Remote connected: %s@%s:%d\n", credential.User, credential.Host, credential.Port)
 	fmt.Println("\n--- CREDENTIALS ---")
-	fmt.Printf("HOST=%s\n", credential.Host)
-	fmt.Printf("PORT=%d\n", credential.Port)
-	fmt.Printf("USER=%s\n", credential.User)
-	fmt.Printf("AUTHTYPE=%s\n", credential.AuthType)
-	if credential.Password != "" && credential.Password != "key-based" {
-		fmt.Printf("PASSWORD=%s\n", credential.Password)
-	}
+	fmt.Printf("HOST_PORT=%s\n", tunnelInfo)
+	fmt.Printf("USER=%s\n", user)
 	fmt.Println("--- END CREDENTIALS ---")
 }
