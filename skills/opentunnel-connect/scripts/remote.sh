@@ -161,6 +161,16 @@ main() {
     echo "Auto-disconnecting in ${EXPIRE_MINUTES} minutes"
     echo "========================================================"
     
+    # Wait for bore to output port before exiting
+    sleep 3
+    if [ -f /tmp/ot_bore.log ]; then
+        FINAL_PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
+        if [ -n "$FINAL_PORT" ]; then
+            echo ""
+            echo "FINAL TUNNEL: bore.pub:${FINAL_PORT}"
+        fi
+    fi
+    
     if [ "$DAEMON_MODE" = true ]; then
         nohup bash -c "sleep $((EXPIRE_MINUTES * 60)); cleanup" > /dev/null 2>&1 &
         exit 0
