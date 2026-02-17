@@ -1,6 +1,5 @@
 #!/bin/bash
 
-WEBHOOK_URL=""
 SSH_KEY=""
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
 TEMP_USER="tunneluser"
@@ -22,10 +21,11 @@ usage() {
     echo "Usage: $0 <webhook_url> [minutes] [username] [ssh_key]"
     echo ""
     echo "Arguments:"
-    echo "  webhook_url  The localhost.run URL from local machine"
+    echo "  webhook_url  The localhost.run URL from local machine (ignored - for compatibility)"
     echo "  minutes     Minutes until auto-disconnect (default: 60)"
     echo "  username    SSH user to create (default: tunneluser)"
     echo "  ssh_key     SSH public key to add (optional)"
+    echo "  --daemon   Run in background and exit immediately"
     echo ""
     exit 1
 }
@@ -185,40 +185,6 @@ start_tunnel() {
     echo "$PORT"
 }
 
-send_credentials() {
-    local user=$1
-    local pass=$2
-    local port=$3
-    local auth_type=$4
-    
-    local payload=$(cat <<EOF
-{
-    "user": "${user}",
-    "password": "${pass}",
-    "host": "bore.pub",
-    "port": ${port},
-    "auth_type": "${auth_type}"
-}
-EOF
-)
-    
-    log_info "Sending credentials to webhook..."
-    
-    for i in 1 2 3; do
-        if curl -fsSL -X POST "http://${WEBHOOK_URL}/connect" \
-            -H "Content-Type: application/json" \
-            -d "$payload" 2>/dev/null; then
-            log_info "Credentials sent!"
-            return 0
-        fi
-        log_warn "Retrying..."
-        sleep 2
-    done
-    
-    log_error "Failed to send credentials"
-    return 1
-}
-
 cleanup() {
     log_info "Cleaning up..."
     
@@ -246,7 +212,6 @@ main() {
     parse_args "$@"
     
     log_info "Starting OpenTunnel Connect..."
-    log_info "Webhook: ${WEBHOOK_URL}"
     log_info "User: ${TEMP_USER}"
     
     if ! install_bore; then
@@ -264,8 +229,6 @@ main() {
         AUTH_TYPE="key"
     fi
     
-    send_credentials "$TEMP_USER" "$PASS" "$PORT" "$AUTH_TYPE"
-    
     echo ""
     echo "========================================================"
     echo -e "              ${GREEN}CONNECTED${NC}"
@@ -274,6 +237,9 @@ main() {
     echo "Tunnel: bore.pub:${PORT}"
     echo "User: ${TEMP_USER}"
     echo "Auth: ${AUTH_TYPE}"
+    echo ""
+    echo "COPY THIS INFO TO YOUR LOCAL MACHINE:"
+    echo "  bore.pub:${PORT}"
     echo ""
     echo "Auto-disconnecting in ${EXPIRE_MINUTES} minutes"
     echo "========================================================"
