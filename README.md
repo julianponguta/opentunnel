@@ -1,40 +1,65 @@
 # OpenTunnel
 
-One-command SSH tunnel to access remote servers without installing anything.
+One-command SSH tunnel to access remote servers instantly.
 
 ## Quick Start
 
-On your remote server, run:
+### 1. Setup (once)
 
 ```bash
-curl -fsSL https://get.opentunnel.dev | sudo bash
+echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@:-60}"; }' >> ~/.bashrc && source ~/.bashrc
 ```
 
-Or download and run locally:
+### 2. Use
 
 ```bash
-curl -fsSL https://get.opentunnel.dev -o connect.sh
-chmod +x connect.sh
-sudo ./connect.sh
+ot 30              # 30 minutes, user: tunneluser
+ot 60              # 60 minutes (default), user: tunneluser
+ot 30 root         # 30 minutes, user: root
+ot 30 ubuntu       # 30 minutes, user: ubuntu
 ```
 
 ## What It Does
 
 1. Installs `bore` (if not present)
-2. Generates temporary SSH key
-3. Creates temporary user
-4. Starts tunnel to bore.pub
-5. Sets auto-cleanup timer (1 hour)
+2. Creates temporary user with password
+3. Starts tunnel to bore.pub
+4. Sets auto-cleanup timer
 
 ## Output
 
-You'll get a command like:
+You'll get:
 
-```bash
-ssh -o StrictHostKeyChecking=no -i /tmp/opentunnel_key_abc123 tunneluser@12345.bore.pub
+```
+========================================================
+              OPENTUNNEL READY
+========================================================
+
+User:     tunneluser
+Password: otp_abc123
+
+Connect with:
+------------------------------------------------------------
+ssh -p 12345 tunneluser@bore.pub
+------------------------------------------------------------
+
+Expires in: 30 minutes
+========================================================
 ```
 
-Run this on your local machine to connect.
+## Connect from Windows
+
+```powershell
+ssh -p 12345 tunneluser@bore.pub
+# Then enter the password when prompted
+```
+
+## Connect from Linux/Mac
+
+```bash
+ssh -p 12345 tunneluser@bore.pub
+# Then enter the password when prompted
+```
 
 ## Requirements
 
@@ -44,7 +69,7 @@ Run this on your local machine to connect.
 
 ## Security
 
-- Key auto-expires after 1 hour
-- User and key are deleted automatically
+- Auto-expires after configured minutes
+- User is deleted automatically
 - No persistent access left behind
-- Only one session at a time
+- Password is unique each session
