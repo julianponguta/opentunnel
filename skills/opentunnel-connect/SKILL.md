@@ -1,87 +1,79 @@
 ---
 name: opentunnel-connect
-description: Establish SSH connections to remote servers via reverse tunnel using bore + localhost.run.
-version: 1.3.0
+description: Establish SSH connections to remote servers via reverse tunnel.
+version: 1.4.0
 ---
 
 # OpenTunnel Connect Skill
 
-This skill enables OpenCode to establish SSH connections to remote servers through a reverse tunnel.
-
-## Architecture
-
-- **Webhook server** (local): Uses localhost.run to expose a webhook
-- **Remote Uses bore to create SSH tunnel to bore server**:.pub
+This skill automatically establishes SSH connections to remote servers using:
+- **localhost.run** - For local webhook
+- **bore** - For SSH tunnel on remote
 
 ## When to Use
 
-Use this skill when:
-- User wants to connect to a remote server behind NAT/firewall
-- Remote server cannot accept incoming SSH connections
-- User has sudo access on the remote server
-
-## Prerequisites
-
-```bash
-# Install dependencies
-cd skills/opentunnel-connect && npm install
-```
-
-Required:
-- Node.js
-- express
-- SSH access to remote server
+Use when user wants to connect to a remote server behind NAT/firewall.
 
 ## Workflow
 
-### Step 1: Start Webhook Server (Local)
+### Step 1: Start Webhook Server
 
+Run on your machine:
 ```bash
 cd skills/opentunnel-connect/scripts && node server.js
 ```
 
-Output:
-```
-========================================
-Server running! Share this URL:
-xxx.lhr.life
-========================================
-```
+Wait for URL output like: `abc123.lhr.life`
 
-### Step 2: Provide Command to Remote User
+### Step 2: Provide Command to User
 
-Give this command to run on the remote server:
-```bash
+Give this command to user to run on remote server:
+```
 curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- WEBHOOK_URL MINUTES USER
 ```
 
 Example:
-```bash
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- xxx.lhr.life 60 root
+```
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- abc123.lhr.life 60 root
 ```
 
-### Step 3: Receive Credentials
+### Step 3: Wait for Credentials
 
-The webhook receives credentials via POST `/connect`:
+Poll:
+```bash
+curl http://localhost:3000/status
+```
+
+Response:
 ```json
 {
+  "status": "ready",
+  "credentials": {
     "user": "root",
-    "password": "otp_abc123...",
+    "password": "otp_xxx",
     "host": "bore.pub",
     "port": 12345
+  }
 }
 ```
 
-### Step 4: Connect via SSH
+### Step 4: Connect via ezssh-mcp
 
-Use ezssh-mcp with:
-- host: `bore.pub`
-- port: [received port]
-- username: [received user]
-- password: [received password]
+```json
+{
+  "host": "bore.pub",
+  "port": 12345,
+  "username": "root",
+  "password": "otp_xxx"
+}
+```
 
-## Files
+## Setup
 
-- `scripts/server.js` - Local webhook server (uses localhost.run)
-- `scripts/remote.sh` - Remote server script (uses bore)
-- `package.json` - Dependencies
+```bash
+npm install -g ezssh-mcp
+npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+cd skills/opentunnel-connect && npm install
+```
+
+Configure ezssh in `~/.config/opencode/opencode.json`.
