@@ -15,7 +15,22 @@ func getSSHKey() string {
 		homeDir = os.Getenv("HOME")
 	}
 
-	keyPath := filepath.Join(homeDir, ".ssh", "id_ed25519.pub")
+	sshDir := filepath.Join(homeDir, ".ssh")
+	keyPath := filepath.Join(sshDir, "id_ed25519.pub")
+	privateKeyPath := filepath.Join(sshDir, "id_ed25519")
+
+	if _, err := os.Stat(privateKeyPath); os.IsNotExist(err) {
+		fmt.Println("[*] SSH key not found, generating one...")
+
+		os.MkdirAll(sshDir, 0700)
+
+		cmd := exec.Command("ssh-keygen", "-t", "ed25519", "-f", privateKeyPath, "-N", "", "-C", "opentunnel")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stdout
+		cmd.Run()
+
+		fmt.Println("[+] SSH key generated!")
+	}
 
 	data, err := os.ReadFile(keyPath)
 	if err == nil {
@@ -31,8 +46,7 @@ func main() {
 	sshKey := getSSHKey()
 
 	if sshKey == "" {
-		fmt.Println("[-] Error: Could not find SSH key in ~/.ssh/id_ed25519.pub")
-		fmt.Println("    Please generate one with: ssh-keygen -t ed25519")
+		fmt.Println("[-] Error: Could not generate or find SSH key")
 		os.Exit(1)
 	}
 

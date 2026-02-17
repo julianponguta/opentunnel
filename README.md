@@ -14,10 +14,10 @@ Run on your **local machine** (Windows):
 .\opentunnel.exe --user root --minutes 60
 ```
 
-Or with custom SSH key:
-```powershell
-.\opentunnel.exe --user root --minutes 60 --ssh-key "ssh-ed25519 ..."
-```
+The binary will:
+- **Automatically create** an SSH key if you don't have one
+- Start localhost.run tunnel
+- Output the curl command for remote
 
 ## Step 2: Run Command on Remote Server
 
@@ -57,7 +57,9 @@ Ask user:
 
 ### Step 2: Execute Binary
 
-The binary automatically reads your SSH key from `~/.ssh/id_ed25519.pub`.
+The binary automatically:
+- Creates SSH key if missing
+- Reads SSH key from ~/.ssh/id_ed25519.pub
 
 ```powershell
 powershell.exe -Command "& 'C:\Users\Julian\.config\opencode\skills\opentunnel-connect\opentunnel.exe' --user USERNAME --minutes MINUTES"
@@ -97,7 +99,7 @@ ezssh_ssh_execute({
 
 # Troubleshooting
 
-- **SSH key not found**: Run `ssh-keygen -t ed25519` to generate one
+- **No SSH key**: Binary automatically creates one in ~/.ssh/
 - **SSH key not working**: Run the curl command on remote - it adds the key automatically
 - **Connection refused**: Wait a few seconds for bore to start on remote
 - **Tunnel expired**: Run the curl command again on remote
