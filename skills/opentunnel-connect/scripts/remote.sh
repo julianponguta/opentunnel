@@ -107,7 +107,12 @@ setup_user() {
     
     if id "${TEMP_USER}" &>/dev/null; then
         log_info "User ${TEMP_USER} already exists"
-        echo "existing"
+        if [ -n "$SSH_KEY" ]; then
+            setup_user_with_key "$TEMP_USER" "$SSH_KEY"
+            echo "key-based"
+        else
+            echo "existing"
+        fi
         return 0
     fi
     
