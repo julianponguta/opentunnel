@@ -189,14 +189,12 @@ main() {
     
     print_output "$BORE_URL"
     
-    log_info "Tunnel is active. Press Ctrl+C to stop (cleanup will run automatically)"
+    log_info "Tunnel is active. Timer will auto-cleanup in ${EXPIRE_MINUTES} minutes"
     
-    disown $BORE_PID 2>/dev/null || true
-    while kill -0 $BORE_PID 2>/dev/null; do
-        sleep 5
-    done
+    nohup bore local 22 --to bore.pub > /dev/null 2>&1 &
+    sleep 1
+    
+    exit 0
 }
-
-trap cleanup EXIT
 
 main "$@"
