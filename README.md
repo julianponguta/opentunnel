@@ -64,4 +64,6 @@ cd skills/opentunnel-connect && npm install
 
 ## For AI Agents
 
+```
 Follow the instructions at: https://raw.githubusercontent.com/julianponguta/opentunnel/main/README.md
+```
