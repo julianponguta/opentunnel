@@ -55,12 +55,12 @@ The skill should:
 
 Provide this command to user:
 ```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect-skill/scripts/remote.sh" | sudo bash -s -- WEBHOOK_URL MINUTES USER
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- WEBHOOK_URL MINUTES USER
 ```
 
 Example:
 ```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect-skill/scripts/remote.sh" | sudo bash -s -- bore.pub:12345 30 root
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- bore.pub:12345 30 root
 ```
 
 ## Receiving Credentials
