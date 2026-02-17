@@ -4,11 +4,9 @@ This file contains all the instructions AI agents need to set up and use OpenTun
 
 ## Overview
 
-OpenTunnel creates SSH tunnels to remote servers using **bore** for both:
-- Local webhook server
-- Remote SSH tunnel
-
-Both connect through `bore.pub` - no additional services needed.
+OpenTunnel creates SSH tunnels to remote servers using:
+- **localhost.run** - For local webhook (on your machine)
+- **bore** - For SSH tunnel (on remote server)
 
 ## Setup (One-Time)
 
@@ -51,6 +49,8 @@ When user wants to connect to a remote server:
 
 ### Step 1: Start Webhook Server (Your Machine)
 
+Run this on your local machine (Windows PowerShell or Linux):
+
 ```bash
 cd skills/opentunnel-connect/scripts && node server.js
 ```
@@ -59,28 +59,28 @@ Wait for output like:
 ```
 ========================================
 Server running! Share this URL:
-bore.pub:12345
+abc123.lhr.life
 ========================================
 ```
 
-Copy the port number (e.g., `12345`).
+Copy the URL (e.g., `abc123.lhr.life`).
 
 ### Step 2: Provide Command to Remote User
 
 Give this command to the user to run on the remote server:
 
 ```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- WEBHOOK_PORT MINUTES USER
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- WEBHOOK_URL MINUTES USER
 ```
 
 Replace:
-- `WEBHOOK_PORT` - The port from Step 1 (e.g., `12345`)
+- `WEBHOOK_URL` - The URL from Step 1 (e.g., `abc123.lhr.life`)
 - `MINUTES` - Session duration (default: 60)
 - `USER` - Username to create (default: tunneluser)
 
 **Example:**
 ```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- 12345 60 root
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- abc123.lhr.life 60 root
 ```
 
 ### Step 3: Wait for Credentials
@@ -117,11 +117,11 @@ Use ezssh-mcp tool with these credentials:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  TU MÁQUINA                                           │
+│  TU MÁQUINA (localhost.run)                           │
 │                                                         │
 │  node server.js                                        │
-│    └─► bore local 3000 --to bore.pub                  │
-│           └─► bore.pub:12345                          │
+│    └─► ssh -R 80:localhost:3000 nokey@localhost.run  │
+│           └─► abc123.lhr.life                        │
 │                                                         │
 │  Webhook listening on /connect                        │
 └─────────────────────────────────────────────────────────┘
@@ -129,18 +129,18 @@ Use ezssh-mcp tool with these credentials:
                          │ HTTP
                          ▼
 ┌─────────────────────────────────────────────────────────┐
-│  SERVIDOR REMOTO                                       │
+│  SERVIDOR REMOTO (bore)                                │
 │                                                         │
 │  remote.sh                                             │
 │    └─► bore local 22 --to bore.pub                    │
 │           └─► bore.pub:54321                          │
-│    └─► POST http://bore.pub:12345/connect            │
+│    └─► POST http://abc123.lhr.life/connect           │
 │           {user, password, host, port}                │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ## Files
 
-- `scripts/server.js` - Local webhook server
-- `scripts/remote.sh` - Remote server script
+- `scripts/server.js` - Local webhook server (uses localhost.run)
+- `scripts/remote.sh` - Remote server script (uses bore)
 - `scripts/SKILL.md` - Skill definition
