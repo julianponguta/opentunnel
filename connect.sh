@@ -6,8 +6,14 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
-TEMP_USER=${1:-tunneluser}
-EXPIRE_MINUTES=${2:-60}
+
+if [[ "$1" =~ ^[0-9]+$ ]]; then
+    EXPIRE_MINUTES=$1
+    TEMP_USER=${2:-tunneluser}
+else
+    TEMP_USER=${1:-tunneluser}
+    EXPIRE_MINUTES=${2:-60}
+fi
 SSH_PROCESS=""
 
 cleanup() {
@@ -94,6 +100,26 @@ start_tunnel() {
         fi
         sleep 1
     done
+    
+    echo "[!] localhost.run failed, trying bore..."
+    pkill -f "localhost.run" 2>/dev/null || true
+    
+    if command -v bore &> /dev/null; then
+        bore local 22 --to bore.pub > /tmp/ot_url 2>&1 &
+        SSH_PROCESS=$!
+        
+        for i in $(seq 1 20); do
+            URL=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_url | head -1)
+            if [ -n "$URL" ]; then
+                echo "$URL" > /tmp/ot_url
+                return 0
+            fi
+            sleep 1
+        done
+    else
+        echo "[!] bore not installed. To use localhost.run, you need an SSH key."
+        echo "[!] Or install bore: curl -fsSL https://getbore.io | bash"
+    fi
     
     return 1
 }
