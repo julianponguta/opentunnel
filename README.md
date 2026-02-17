@@ -21,10 +21,18 @@ ot 30 root        # 30 minutes, root
 
 ## How It Works
 
-1. **Setup** (one-time) - Install skill + ezssh-mcp
-2. **Use** (each time) - Start webhook → Give command to user → Connect
+Uses [localhost.run](https://localhost.run) to create SSH tunnels:
 
-The AI agent cannot connect automatically because it needs the user to run a command on the remote server.
+1. Runs `ssh -R 80:localhost:22 localhost.run` on remote server
+2. Gets a public URL like `xxx.lhr.life`
+3. You connect directly via that URL
+
+---
+
+## Requirements
+
+- SSH installed on remote server
+- No additional software needed (uses built-in SSH)
 
 ---
 

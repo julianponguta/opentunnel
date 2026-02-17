@@ -1,96 +1,144 @@
 ---
 name: opentunnel-connect
-description: Establish SSH connections to remote servers via reverse tunnel. Use when user wants to connect to a remote server behind NAT/firewall without manual credential handling.
-version: 1.0.0
+description: Establish SSH connections to remote servers via reverse tunnel using bore.
+version: 1.2.0
 ---
 
 # OpenTunnel Connect Skill
 
-This skill enables OpenCode to establish SSH connections to remote servers through a reverse tunnel using bore.
+This skill enables OpenCode to establish SSH connections to remote servers through a reverse tunnel using [bore](https://github.com/ekzhang/bore).
 
 ## When to Use
 
 Use this skill when:
-- User wants to connect to a remote server via SSH
-- The remote server is not directly accessible (behind NAT/firewall)
-- User wants automatic connection without manual credential handling
-- The user has sudo access on the remote server
+- User wants to connect to a remote server behind NAT/firewall
+- Remote server cannot accept incoming SSH connections
+- User has sudo access on the remote server
+- User wants automatic credential handling
+
+## Platform Support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| Linux | Supported | Native bore binary |
+| macOS | Supported | Native bore binary |
+| Windows (WSL) | Supported | Requires bore installed in WSL |
+| Windows (Native) | Limited | Use WSL or Linux VM |
+
+### Windows Setup
+
+For Windows users, the recommended approach is:
+
+1. Install WSL2 with Ubuntu
+2. Install bore in WSL:
+   ```bash
+   wsl -e bash -c "curl -fsSL https://github.com/ekzhang/bore/releases/download/v0.6.0/bore-v0.6.0-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /tmp && sudo mv /tmp/bore /usr/local/bin/ && sudo chmod +x /usr/local/bin/bore"
+   ```
+3. Run the webhook server from WSL:
+   ```bash
+   cd skills/opentunnel-connect/scripts && node server.js
+   ```
+
+Alternatively, run the webhook server on a Linux machine (local VM, cloud instance, or container).
 
 ## Prerequisites
 
-After installing the skill, run:
+The skill uses:
+- Node.js (for local webhook server)
+- `ezssh-mcp` for SSH connections
+- Internet access for bore.pub tunnel
+
+### Setup Steps
+
+1. Install dependencies:
 ```bash
 cd skills/opentunnel-connect && npm install
 ```
 
-Required:
-- Node.js
-- npm packages: express
-- bore CLI (auto-installed on first run)
-
-The skill will create a flag file at `~/.opentunnel-installed` after first run to skip this check.
+2. Ensure ezssh-mcp is configured in `~/.config/opencode/opencode.json`
 
 ## Workflow
 
-1. **User Request**: User asks to connect to a remote server
-2. **Gather Info**: Ask for:
-   - Minutes until auto-disconnect (default: 60)
-   - User to connect as (default: root)
-3. **Start Webhook**: Start local webhook server with bore tunnel
-4. **Generate Command**: Provide command to run on remote server
-5. **Wait for Credentials**: Wait for remote server to send credentials
-6. **Connect**: Use ezssh to establish SSH connection
-7. **Handle Disconnect**: If connection drops, regenerate connection command
+### Step 1: Start Local Webhook Server
 
-## Starting Webhook Server
-
-The skill should:
-1. Check for `~/.opentunnel-installed` flag
-2. If not present, install dependencies
-3. Run `scripts/server.js` with Node.js
-4. Wait for bore tunnel to establish
-5. Extract the bore URL from output
-
-## Command Format
-
-Provide this command to user:
+Run the server script (from Linux/WSL):
+```bash
+cd skills/opentunnel-connect/scripts && node server.js
 ```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- WEBHOOK_URL MINUTES USER
+
+The server will:
+1. Install bore if needed
+2. Start a bore tunnel
+3. Output a URL like: `https://bore.pub:12345`
+
+### Step 2: Provide Command to Remote User
+
+Give this command to run on the remote server:
+```bash
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- bore.pub:PORT MINUTES USERNAME
 ```
 
 Example:
-```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- bore.pub:12345 30 root
+```bash
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- bore.pub:12345 60 root
 ```
 
-## Receiving Credentials
+### Step 3: Wait for Credentials
 
-When webhook receives POST at `/connect`:
+The webhook will receive credentials via POST `/connect`:
 ```json
 {
-    "user": "root",
-    "password": "existing",
+    "user": "tunneluser",
+    "password": "otp_abc123...",
     "host": "bore.pub",
     "port": 12345
 }
 ```
 
-## Connecting via SSH
+### Step 4: Connect via SSH
 
-Use ezssh_ssh_execute with:
-- host: bore.pub
-- port: [received port]
-- username: [received user]
-- password: [received password]
+Use ezssh-mcp to connect:
+```json
+{
+    "host": "bore.pub",
+    "port": 12345,
+    "username": "tunneluser",
+    "password": "otp_abc123..."
+}
+```
 
-## Error Handling
+## Command Reference
 
-- If webhook doesn't receive credentials within 60 seconds, inform user
-- If SSH connection fails, offer to regenerate command
-- If connection drops, user can run command again or skill can provide new command
+### Local (server.js)
 
-## Related
+```bash
+# Default port 3000
+node server.js
 
-- opentunnel: https://github.com/julianponguta/opentunnel
-- ezssh-mcp: https://github.com/laomeifun/ezssh-mcp
-- bore: https://github.com/ekzhang/bore
+# Custom port
+node server.js 8080
+```
+
+### Remote (remote.sh)
+
+```bash
+remote.sh <webhook_url> [minutes] [username]
+
+# Arguments:
+#   webhook_url   - bore.pub:PORT from local server
+#   minutes       - Session duration (default: 60)
+#   username      - SSH user to create (default: tunneluser)
+```
+
+## Troubleshooting
+
+- **Windows Defender blocks bore.exe**: Use WSL or add exclusion
+- **WSL network slow**: Run server on Linux VM instead
+- **Connection timeout**: Check firewall settings on remote server
+- **Credentials not received**: Verify remote script ran successfully
+
+## Files
+
+- `scripts/server.js` - Local webhook server
+- `scripts/remote.sh` - Remote server script  
+- `package.json` - Dependencies
