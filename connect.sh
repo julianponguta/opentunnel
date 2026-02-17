@@ -73,7 +73,8 @@ install_bore() {
     case $ARCH in
         x86_64) BORE_ARCH="x86_64" ;;
         aarch64) BORE_ARCH="aarch64" ;;
-        armv7l|arm) BORE_ARCH="arm" ;;
+        i686) BORE_ARCH="i686" ;;
+        arm*) BORE_ARCH="arm" ;;
         *) 
             if [ "$(uname -o)" = "Android" ]; then
                 BORE_ARCH="aarch64"
@@ -85,7 +86,7 @@ install_bore() {
     esac
     
     TEMP_BORE="/tmp/bore_${SESSION_ID}"
-    curl -fsSL "https://github.com/ekzhang/bore/releases/download/v${BORE_VERSION}/bore-v${BORE_VERSION}-unknown-linux-musl-${BORE_ARCH}.tar.gz" | tar -xz -C /tmp
+    curl -fsSL "https://github.com/ekzhang/bore/releases/download/v${BORE_VERSION}/bore-v${BORE_VERSION}-${BORE_ARCH}-unknown-linux-musl.tar.gz" | tar -xz -C /tmp
     sudo mv /tmp/bore "$TEMP_BORE"
     sudo mv "$TEMP_BORE" /usr/local/bin/bore
     sudo chmod +x /usr/local/bin/bore
