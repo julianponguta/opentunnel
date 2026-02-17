@@ -2,7 +2,7 @@
 
 One-command SSH tunnel to access remote servers instantly.
 
-## Quick Start
+## Quick Start (Recommended)
 
 ### 1. Setup (once)
 
@@ -17,6 +17,20 @@ ot 30              # 30 minutes, user: tunneluser
 ot 60              # 60 minutes (default), user: tunneluser
 ot 30 root         # 30 minutes, user: root
 ot 30 ubuntu       # 30 minutes, user: ubuntu
+```
+
+## Direct Install (No Setup)
+
+For one-time use, run directly:
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- 30
+```
+
+Or with custom user:
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- 30 root
 ```
 
 ## What It Does
