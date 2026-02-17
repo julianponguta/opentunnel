@@ -125,13 +125,7 @@ app.post('/connect', (req, res) => {
     
     credentials = { user, password, host, port };
     
-    res.json({ status: 'ok', message: 'Credentials received' });
-    
-    setTimeout(() => {
-        console.log('Shutting down webhook server...');
-        stopServer();
-        process.exit(0);
-    }, 2000);
+    res.json({ status: 'ok', message: 'Credentials received', credentials });
 });
 
 app.get('/status', (req, res) => {
@@ -144,6 +138,17 @@ app.get('/status', (req, res) => {
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
+});
+
+app.get('/', (req, res) => {
+    if (credentials) {
+        res.send(`
+            <h1>OpenTunnel Connected!</h1>
+            <pre>${JSON.stringify(credentials, null, 2)}</pre>
+        `);
+    } else {
+        res.send('<h1>Waiting for credentials...</h1>');
+    }
 });
 
 async function start(port = 3000) {
