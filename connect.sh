@@ -21,6 +21,7 @@ NC='\033[0m'
 log_info() { echo -e "${GREEN}[+]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
+echo "[DEBUG] About to enter for loop..." >&2
 # Parse all args
 echo "[DEBUG] Starting parse..." >&2
 for arg in "$@"; do
@@ -41,10 +42,13 @@ for arg in "$@"; do
 done
 echo "[DEBUG] After parse - minutes: $EXPIRE_MINUTES, user: $TEMP_USER, key: '${SSH_KEY:0:10}...'" >&2
 
+echo "[DEBUG] Checking if SSH key needed..." >&2
 # If no SSH key provided, prompt for it
 if [ -z "$SSH_KEY" ]; then
+    echo "[DEBUG] SSH_KEY is empty, prompting..." >&2
     echo -n "Enter your SSH public key: "
     read SSH_KEY
+    echo "[DEBUG] Read SSH_KEY: '${SSH_KEY:0:10}...'" >&2
 fi
 
 if [ -z "$SSH_KEY" ]; then
