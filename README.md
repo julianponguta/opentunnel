@@ -13,10 +13,12 @@ echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentun
 ### 2. Use
 
 ```bash
-ot 30              # 30 minutes, user: tunneluser
-ot 60              # 60 minutes (default), user: tunneluser
-ot 30 root         # 30 minutes, user: root
-ot 30 ubuntu       # 30 minutes, user: ubuntu
+ot                  # 60 minutes, tunneluser (default)
+ot 30              # 30 minutes, tunneluser
+ot root            # 60 minutes, root
+ot ubuntu          # 60 minutes, ubuntu
+ot 30 root         # 30 minutes, root
+ot root 30         # 30 minutes, root (any order)
 ```
 
 ## Direct Install (No Setup)
@@ -27,9 +29,10 @@ For one-time use, run directly:
 curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- 30
 ```
 
-Or with custom user:
+With custom user:
 
 ```bash
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- root
 curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- 30 root
 ```
 
