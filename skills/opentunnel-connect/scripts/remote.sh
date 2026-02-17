@@ -35,31 +35,25 @@ parse_args() {
         usage
     fi
     
+    # First arg is webhook URL (ignored now, kept for compatibility)
     WEBHOOK_URL="$1"
     
-    if [[ "$2" =~ ^[0-9]+$ ]]; then
-        EXPIRE_MINUTES=$2
-    fi
-    
-    if [[ "$2" == "--daemon" ]]; then
-        DAEMON_MODE=true
-    fi
-    
+    # Parse all arguments
     for arg in "$@"; do
         if [[ "$arg" == "--daemon" ]]; then
             DAEMON_MODE=true
+        elif [[ "$arg" =~ ^[0-9]+$ ]] && [ -z "$EXPIRE_MINUTES" ]; then
+            EXPIRE_MINUTES=$arg
+        elif [[ "$arg" =~ ^ssh- ]]; then
+            SSH_KEY="$arg"
+        elif [[ "$arg" != "$WEBHOOK_URL" ]] && [[ ! "$arg" =~ ^[0-9]+$ ]] && [ -z "$TEMP_USER" ]; then
+            TEMP_USER="$arg"
         fi
     done
     
-    if [ -n "$3" ] && [[ ! "$3" =~ ^ssh- ]] && [[ "$3" != "--daemon" ]]; then
-        TEMP_USER="$3"
-    fi
-    
-    if [[ "$4" =~ ^ssh- ]]; then
-        SSH_KEY="$4"
-    elif [[ "$3" =~ ^ssh- ]]; then
-        SSH_KEY="$3"
-    fi
+    # Defaults
+    [ -z "$EXPIRE_MINUTES" ] && EXPIRE_MINUTES=60
+    [ -z "$TEMP_USER" ] && TEMP_USER="tunneluser"
 }
 
 setup_user_with_key() {
