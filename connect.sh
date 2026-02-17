@@ -1,10 +1,9 @@
 #!/bin/bash
-set -e
 
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || echo "$$")
 TEMP_USER="tunneluser"
 KEY_PATH="/tmp/opentunnel_key_${SESSION_ID}"
-EXPIRE_HOURS=1
+EXPIRE_MINUTES=${1:-60}
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -30,7 +29,7 @@ cleanup() {
 }
 
 setup_cleanup_timer() {
-    log_info "Setting up auto-cleanup timer..."
+    log_info "Setting up auto-cleanup timer for ${EXPIRE_MINUTES} minutes..."
     
     cat > /tmp/opentunnel.service << EOF
 [Unit]
@@ -43,10 +42,10 @@ EOF
 
     cat > /tmp/opentunnel.timer << EOF
 [Unit]
-Description=Auto cleanup after ${EXPIRE_HOURS} hour
+Description=Auto cleanup after ${EXPIRE_MINUTES} minutes
 
 [Timer]
-OnActiveSec=${EXPIRE_HOURS}h
+OnActiveSec=${EXPIRE_MINUTES}min
 Unit=opentunnel.service
 
 [Install]
@@ -125,19 +124,26 @@ start_tunnel() {
     bore local 22 --to bore.pub > /tmp/opentunnel.log 2>&1 &
     BORE_PID=$!
     
-    sleep 3
+    sleep 2
     
-    if ! kill -0 $BORE_PID 2>/dev/null; then
+    if ! ps -p $BORE_PID > /dev/null 2>&1; then
         log_error "Failed to start bore tunnel"
         cat /tmp/opentunnel.log
         exit 1
     fi
     
-    BORE_URL=$(grep -oP '\d+\.bore\.pub' /tmp/opentunnel.log | head -1)
+    for i in 1 2 3 4 5; do
+        sleep 1
+        BORE_URL=$(grep -oP '\d+\.bore\.pub' /tmp/opentunnel.log | head -1)
+        if [ -n "$BORE_URL" ]; then
+            break
+        fi
+    done
     
     if [ -z "$BORE_URL" ]; then
-        log_error "Could not get bore URL"
+        log_error "Could not get bore URL after 5 seconds"
         cat /tmp/opentunnel.log
+        kill $BORE_PID 2>/dev/null || true
         exit 1
     fi
     
@@ -162,7 +168,7 @@ print_output() {
     echo "------------------------------------------------------------"
     echo ""
     echo "Key saved at: ${KEY_PATH}"
-    echo "Expires in:   ${EXPIRE_HOURS} hour(s)"
+    echo "Expires in:   ${EXPIRE_MINUTES} minutes"
     echo ""
     echo "To stop tunnel: pkill -f bore"
     echo "========================================================"
@@ -175,7 +181,7 @@ main() {
         exit 1
     fi
     
-    log_info "Starting OpenTunnel..."
+    log_info "Starting OpenTunnel (expires in ${EXPIRE_MINUTES} minutes)..."
     
     install_bore
     generate_ssh_key
@@ -189,7 +195,8 @@ main() {
     log_info "Tunnel is active. Press Ctrl+C to stop (cleanup will run automatically)"
     
     while true; do
-        sleep 60
+        sleep 60 &
+        wait $!
     done
 }
 
