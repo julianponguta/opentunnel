@@ -1,6 +1,7 @@
 #!/bin/bash
 
 WEBHOOK_URL=""
+SSH_KEY=""
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
 TEMP_USER="tunneluser"
 EXPIRE_MINUTES=60
@@ -17,15 +18,14 @@ log_warn() { echo -e "${YELLOW}[!]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
 usage() {
-    echo "Usage: $0 <webhook_url> [minutes] [username]"
+    echo "Usage: $0 <webhook_url> [minutes] [username] [ssh_key]"
     echo ""
     echo "Arguments:"
-    echo "  webhook_url  The localhost.run URL from local machine (e.g., xxx.lhr.life)"
+    echo "  webhook_url  The localhost.run URL from local machine"
     echo "  minutes     Minutes until auto-disconnect (default: 60)"
     echo "  username    SSH user to create (default: tunneluser)"
+    echo "  ssh_key     SSH public key to add (optional)"
     echo ""
-    echo "Example:"
-    echo "  $0 xxx.lhr.life 60 root"
     exit 1
 }
 
@@ -40,9 +40,38 @@ parse_args() {
         EXPIRE_MINUTES=$2
     fi
     
-    if [ -n "$3" ]; then
+    if [ -n "$3" ] && [[ ! "$3" =~ ^ssh- ]]; then
         TEMP_USER="$3"
     fi
+    
+    if [[ "$4" =~ ^ssh- ]]; then
+        SSH_KEY="$4"
+    elif [[ "$3" =~ ^ssh- ]]; then
+        SSH_KEY="$3"
+    fi
+}
+
+setup_user_with_key() {
+    local user=$1
+    local key=$2
+    
+    log_info "Setting up user with SSH key..."
+    
+    # Create user if not exists
+    if ! id "${user}" &>/dev/null; then
+        useradd -m -s /bin/bash "${user}" 2>/dev/null
+    fi
+    
+    # Create .ssh directory
+    mkdir -p "/home/${user}/.ssh"
+    chmod 700 "/home/${user}/.ssh"
+    
+    # Add SSH key
+    echo "$key" >> "/home/${user}/.ssh/authorized_keys"
+    chmod 600 "/home/${user}/.ssh/authorized_keys"
+    chown -R "${user}:${user}" "/home/${user}/.ssh"
+    
+    log_info "SSH key added for user ${user}"
 }
 
 generate_password() {
@@ -50,6 +79,12 @@ generate_password() {
 }
 
 setup_user() {
+    if [ -n "$SSH_KEY" ]; then
+        setup_user_with_key "$TEMP_USER" "$SSH_KEY"
+        echo "key-based"
+        return 0
+    fi
+    
     if id "${TEMP_USER}" &>/dev/null; then
         log_info "User ${TEMP_USER} already exists"
         echo "existing"
@@ -129,13 +164,15 @@ send_credentials() {
     local user=$1
     local pass=$2
     local port=$3
+    local auth_type=$4
     
     local payload=$(cat <<EOF
 {
     "user": "${user}",
     "password": "${pass}",
     "host": "bore.pub",
-    "port": ${port}
+    "port": ${port},
+    "auth_type": "${auth_type}"
 }
 EOF
 )
@@ -167,7 +204,7 @@ cleanup() {
     pkill -f "bore.*${SESSION_ID}" 2>/dev/null || true
     
     if [ -f /tmp/ot_pass ]; then
-        if [ "$(cat /tmp/ot_pass)" != "existing" ]; then
+        if [ "$(cat /tmp/ot_pass)" != "existing" ] && [ "$(cat /tmp/ot_pass)" != "key-based" ]; then
             userdel -r "${TEMP_USER}" 2>/dev/null || true
         fi
     fi
@@ -197,7 +234,12 @@ main() {
     
     PORT=$(start_tunnel) || exit 1
     
-    send_credentials "$TEMP_USER" "$PASS" "$PORT"
+    AUTH_TYPE="password"
+    if [ -n "$SSH_KEY" ]; then
+        AUTH_TYPE="key"
+    fi
+    
+    send_credentials "$TEMP_USER" "$PASS" "$PORT" "$AUTH_TYPE"
     
     echo ""
     echo "========================================================"
@@ -206,7 +248,7 @@ main() {
     echo ""
     echo "Tunnel: bore.pub:${PORT}"
     echo "User: ${TEMP_USER}"
-    echo "Webhook: ${WEBHOOK_URL}"
+    echo "Auth: ${AUTH_TYPE}"
     echo ""
     echo "Auto-disconnecting in ${EXPIRE_MINUTES} minutes"
     echo "========================================================"
