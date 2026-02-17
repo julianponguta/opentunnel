@@ -2,7 +2,6 @@
 
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || echo "$$")
 TEMP_USER="tunneluser"
-KEY_PATH="/tmp/opentunnel_key_${SESSION_ID}"
 EXPIRE_MINUTES=${1:-60}
 BORE_PID=""
 
@@ -19,8 +18,6 @@ cleanup() {
     log_info "Cleaning up..."
     pkill -f "bore.*${TEMP_USER}" 2>/dev/null || true
     userdel -r "${TEMP_USER}" 2>/dev/null || true
-    rm -f "${KEY_PATH}" "${KEY_PATH}.pub" 2>/dev/null || true
-    rm -f "/tmp/authorized_keys_${SESSION_ID}" 2>/dev/null || true
     systemctl stop opentunnel.timer 2>/dev/null || true
     systemctl disable opentunnel.timer 2>/dev/null || true
     rm -f /etc/systemd/system/opentunnel.service
@@ -38,7 +35,7 @@ Description=OpenTunnel Cleanup
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c "userdel -r ${TEMP_USER} 2>/dev/null; pkill -f bore 2>/dev/null; rm -f ${KEY_PATH} 2>/dev/null"
+ExecStart=/bin/bash -c "userdel -r ${TEMP_USER} 2>/dev/null; pkill -f bore 2>/dev/null"
 EOF
 
     cat > /tmp/opentunnel.timer << EOF
@@ -93,14 +90,14 @@ install_bore() {
     log_info "bore installed successfully"
 }
 
-generate_ssh_key() {
-    log_info "Generating SSH key..."
-    ssh-keygen -t ed25519 -f "${KEY_PATH}" -N "" -C "opentunnel-${SESSION_ID}" 2>/dev/null
-    chmod 600 "${KEY_PATH}"
-    log_info "SSH key generated at ${KEY_PATH}"
+generate_password() {
+    TEMP_PASS="otp_$(openssl rand -hex 6)"
+    echo "$TEMP_PASS"
 }
 
 setup_ssh_user() {
+    TEMP_PASS=$(generate_password)
+    
     log_info "Setting up temporary SSH user..."
     
     if id "${TEMP_USER}" &>/dev/null; then
@@ -109,14 +106,10 @@ setup_ssh_user() {
     fi
     
     sudo useradd -m -s /bin/bash "${TEMP_USER}" 2>/dev/null || true
+    echo "${TEMP_USER}:${TEMP_PASS}" | sudo chpasswd
     
-    sudo mkdir -p "/home/${TEMP_USER}/.ssh"
-    sudo cp "${KEY_PATH}.pub" "/home/${TEMP_USER}/.ssh/authorized_keys"
-    sudo chown -R "${TEMP_USER}:${TEMP_USER}" "/home/${TEMP_USER}/.ssh"
-    sudo chmod 700 "/home/${TEMP_USER}/.ssh"
-    sudo chmod 600 "/home/${TEMP_USER}/.ssh/authorized_keys"
-    
-    log_info "User ${TEMP_USER} configured"
+    log_info "User ${TEMP_USER} configured with password"
+    echo "$TEMP_PASS" > /tmp/opentunnel_pass
 }
 
 start_tunnel() {
@@ -150,31 +143,27 @@ start_tunnel() {
 
 print_output() {
     local bore_url="$1"
+    local password=$(cat /tmp/opentunnel_pass)
     
     echo ""
     echo "========================================================"
     echo -e "              ${GREEN}OPENTUNNEL READY${NC}"
     echo "========================================================"
     echo ""
-    echo "Tunnel: ${bore_url}.bore.pub"
-    echo "User:   ${TEMP_USER}"
+    echo "User:     ${TEMP_USER}"
+    echo "Password: ${password}"
     echo ""
-    echo "Copy and run this on your local machine:"
+    echo "Connect with:"
     echo "------------------------------------------------------------"
-    echo -e "${YELLOW}ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_opentunnel ${TEMP_USER}@${bore_url}.bore.pub${NC}"
-    echo "------------------------------------------------------------"
-    echo ""
-    echo "Private Key (save to ~/.ssh/id_opentunnel):"
-    echo "------------------------------------------------------------"
-    cat "${KEY_PATH}"
+    echo -e "${YELLOW}ssh ${TEMP_USER}@${bore_url}.bore.pub${NC}"
     echo "------------------------------------------------------------"
     echo ""
-    echo "Key expires in: ${EXPIRE_MINUTES} minutes"
-    echo "To stop tunnel: pkill -f bore"
-    echo "========================================================"
+    echo "Or Windows (PowerShell):"
+    echo "------------------------------------------------------------"
+    echo -e "${YELLOW}ssh ${TEMP_USER}@${bore_url}.bore.pub${NC}"
+    echo "------------------------------------------------------------"
     echo ""
-}
-    echo "To stop tunnel: pkill -f bore"
+    echo "Expires in: ${EXPIRE_MINUTES} minutes"
     echo "========================================================"
     echo ""
 }
@@ -188,7 +177,6 @@ main() {
     log_info "Starting OpenTunnel (expires in ${EXPIRE_MINUTES} minutes)..."
     
     install_bore
-    generate_ssh_key
     setup_ssh_user
     setup_cleanup_timer
     
