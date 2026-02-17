@@ -4,6 +4,7 @@ SESSION_ID=$(openssl rand -hex 4 2>/dev/null || echo "$$")
 TEMP_USER="tunneluser"
 KEY_PATH="/tmp/opentunnel_key_${SESSION_ID}"
 EXPIRE_MINUTES=${1:-60}
+BORE_PID=""
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -190,7 +191,10 @@ main() {
     
     log_info "Tunnel is active. Press Ctrl+C to stop (cleanup will run automatically)"
     
-    wait $BORE_PID 2>/dev/null || true
+    disown $BORE_PID 2>/dev/null || true
+    while kill -0 $BORE_PID 2>/dev/null; do
+        sleep 5
+    done
 }
 
 trap cleanup EXIT
