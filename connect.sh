@@ -4,10 +4,6 @@
 # Usage: ot [minutes] [username] [ssh_key]
 # Example: ot 60 root "ssh-ed25519..."
 
-# Debug: show all args FIRST
-echo "[DEBUG] All args: '$*'" >&2
-echo "[DEBUG] Arg count: $#" >&2
-
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
 TEMP_USER="tunneluser"
 EXPIRE_MINUTES=60
@@ -21,30 +17,41 @@ NC='\033[0m'
 log_info() { echo -e "${GREEN}[+]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
-echo "[DEBUG] About to enter for loop..." >&2
-
-# Simple parse: first arg = minutes (if number), second = user
+# Parse: ot minutes user ssh_key
 if [[ "$1" =~ ^[0-9]+$ ]]; then
     EXPIRE_MINUTES="$1"
     TEMP_USER="${2:-tunneluser}"
+    SSH_KEY="$3"
 elif [ -n "$1" ]; then
     TEMP_USER="$1"
     EXPIRE_MINUTES="${2:-60}"
-fi
-
-echo "[DEBUG] After simple parse - minutes: $EXPIRE_MINUTES, user: $TEMP_USER" >&2
-
-echo "[DEBUG] Checking if SSH key needed..." >&2
-# If no SSH key provided, prompt for it
-if [ -z "$SSH_KEY" ]; then
-    echo "[DEBUG] SSH_KEY is empty, prompting..." >&2
-    echo -n "Enter your SSH public key: "
-    read SSH_KEY
-    echo "[DEBUG] Read SSH_KEY: '${SSH_KEY:0:10}...'" >&2
+    SSH_KEY="$3"
 fi
 
 if [ -z "$SSH_KEY" ]; then
-    log_error "SSH key required"
+    log_error "SSH key required as argument"
+    log_error "Usage: ot [minutes] [username] [ssh_key]"
+    log_error "Example: ot 60 root \"ssh-ed25519 AAAA...\""
+    exit 1
+fi
+
+# Simple parse: first arg = minutes (if number), second = user, third = ssh_key
+if [[ "$1" =~ ^[0-9]+$ ]]; then
+    EXPIRE_MINUTES="$1"
+    TEMP_USER="${2:-tunneluser}"
+    SSH_KEY="$3"
+elif [ -n "$1" ]; then
+    TEMP_USER="$1"
+    EXPIRE_MINUTES="${2:-60}"
+    SSH_KEY="$3"
+fi
+
+echo "[DEBUG] After parse - minutes: $EXPIRE_MINUTES, user: $TEMP_USER, key provided: $([ -n "$SSH_KEY" ] && echo yes || echo no)" >&2
+
+if [ -z "$SSH_KEY" ]; then
+    log_error "SSH key required as third argument"
+    log_error "Usage: ot [minutes] [username] [ssh_key]"
+    log_error "Example: ot 60 root \"ssh-ed25519 AAAA...\""
     exit 1
 fi
 
