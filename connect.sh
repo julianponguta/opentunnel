@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || echo "$$")
-TEMP_USER="tunneluser"
+TEMP_USER=${2:-tunneluser}
 EXPIRE_MINUTES=${1:-60}
 BORE_PID=""
 
@@ -98,15 +98,18 @@ generate_password() {
 setup_ssh_user() {
     TEMP_PASS=$(generate_password)
     
-    log_info "Setting up temporary SSH user..."
+    log_info "Setting up SSH for user: ${TEMP_USER}"
     
-    if id "${TEMP_USER}" &>/dev/null; then
-        log_warn "User ${TEMP_USER} exists, removing..."
-        sudo userdel -r "${TEMP_USER}" 2>/dev/null || true
+    if [ "${TEMP_USER}" = "root" ]; then
+        echo "root:${TEMP_PASS}" | sudo chpasswd
+    else
+        if id "${TEMP_USER}" &>/dev/null; then
+            log_warn "User ${TEMP_USER} exists, removing..."
+            sudo userdel -r "${TEMP_USER}" 2>/dev/null || true
+        fi
+        sudo useradd -m -s /bin/bash "${TEMP_USER}" 2>/dev/null || true
+        echo "${TEMP_USER}:${TEMP_PASS}" | sudo chpasswd
     fi
-    
-    sudo useradd -m -s /bin/bash "${TEMP_USER}" 2>/dev/null || true
-    echo "${TEMP_USER}:${TEMP_PASS}" | sudo chpasswd
     
     log_info "User ${TEMP_USER} configured with password"
     echo "$TEMP_PASS" > /tmp/opentunnel_pass
