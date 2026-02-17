@@ -37,15 +37,21 @@ function startLocalhostRunTunnel(port) {
         console.log('Starting localhost.run tunnel...');
         
         const isWindows = process.platform === 'win32';
-        const shell = isWindows ? 'powershell' : 'bash';
-        const cmd = isWindows 
-            ? ['-Command', `ssh -o StrictHostKeyChecking=no -R 80:localhost:${port} nokey@localhost.run`]
-            : ['-c', `ssh -o StrictHostKeyChecking=no -R 80:localhost:${port} nokey@localhost.run`];
         
-        tunnelProcess = spawn(shell, cmd, {
+        let cmd, args;
+        
+        if (isWindows) {
+            cmd = 'powershell';
+            args = ['-NoProfile', '-Command', `ssh -o StrictHostKeyChecking=no -R 80:localhost:${port} nokey@localhost.run`];
+        } else {
+            cmd = 'ssh';
+            args = ['-o', 'StrictHostKeyChecking=no', '-R', `80:localhost:${port}`, 'nokey@localhost.run'];
+        }
+        
+        tunnelProcess = spawn(cmd, args, {
             stdio: ['ignore', 'pipe', 'pipe'],
-            detached: !isWindows,
-            shell: false
+            shell: false,
+            windowsHide: true
         });
         
         let url = '';
@@ -96,11 +102,7 @@ function startLocalhostRunTunnel(port) {
 function stopTunnel() {
     if (tunnelProcess) {
         try {
-            if (process.platform === 'win32') {
-                tunnelProcess.kill();
-            } else {
-                process.kill(-tunnelProcess.pid);
-            }
+            tunnelProcess.kill('SIGTERM');
         } catch (e) {}
         tunnelProcess = null;
     }
