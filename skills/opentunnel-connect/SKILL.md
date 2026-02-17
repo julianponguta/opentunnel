@@ -16,17 +16,17 @@ Use this skill when:
 - User wants automatic connection without manual credential handling
 - The user has sudo access on the remote server
 
-## Prerequisites Check
+## Prerequisites
 
-**First time only:** Check if dependencies are installed:
-- Node.js (for webhook server)
-- npm packages: express
-- bore CLI
-
-If not installed, install with:
+After installing the skill, run:
 ```bash
-npm install express
+cd skills/opentunnel-connect && npm install
 ```
+
+Required:
+- Node.js
+- npm packages: express
+- bore CLI (auto-installed on first run)
 
 The skill will create a flag file at `~/.opentunnel-installed` after first run to skip this check.
 
