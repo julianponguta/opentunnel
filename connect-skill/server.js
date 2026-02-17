@@ -1,6 +1,7 @@
 const express = require('express');
 const { spawn, execSync } = require('child_process');
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(express.json());
@@ -8,6 +9,58 @@ app.use(express.json());
 let credentials = null;
 let boreProcess = null;
 let server = null;
+
+const FLAG_FILE = path.join(process.env.HOME || process.env.USERPROFILE, '.opentunnel-installed');
+
+function checkDependencies() {
+    if (fs.existsSync(FLAG_FILE)) {
+        console.log('Dependencies already installed (flag found)');
+        return true;
+    }
+    return false;
+}
+
+function markInstalled() {
+    try {
+        fs.writeFileSync(FLAG_FILE, new Date().toISOString());
+        console.log('Flag created: ' + FLAG_FILE);
+    } catch (e) {
+        console.error('Failed to create flag:', e.message);
+    }
+}
+
+function installDependencies() {
+    if (checkDependencies()) {
+        return true;
+    }
+    
+    console.log('Checking dependencies...');
+    
+    // Check Node.js
+    try {
+        execSync('node --version', { stdio: 'ignore' });
+    } catch (e) {
+        console.error('Node.js not found. Please install Node.js first.');
+        return false;
+    }
+    
+    // Install npm packages
+    try {
+        console.log('Installing express...');
+        execSync('npm install express', { stdio: 'inherit' });
+    } catch (e) {
+        console.error('Failed to install express:', e.message);
+        return false;
+    }
+    
+    // Install bore
+    if (!installBore()) {
+        return false;
+    }
+    
+    markInstalled();
+    return true;
+}
 
 function installBore() {
     try {
@@ -110,8 +163,8 @@ app.get('/status', (req, res) => {
 });
 
 async function start(port = 3000) {
-    if (!installBore()) {
-        throw new Error('Failed to install bore');
+    if (!installDependencies()) {
+        throw new Error('Failed to install dependencies');
     }
     
     const borePort = await startBoreTunnel(port);
