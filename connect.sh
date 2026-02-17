@@ -27,9 +27,9 @@ echo "[DEBUG] About to enter for loop..." >&2
 if [[ "$1" =~ ^[0-9]+$ ]]; then
     EXPIRE_MINUTES="$1"
     TEMP_USER="${2:-tunneluser}"
-else
-    TEMP_USER="${1:-tunneluser}"
-    TEMP_USER="${2:-60}"
+elif [ -n "$1" ]; then
+    TEMP_USER="$1"
+    EXPIRE_MINUTES="${2:-60}"
 fi
 
 echo "[DEBUG] After simple parse - minutes: $EXPIRE_MINUTES, user: $TEMP_USER" >&2
