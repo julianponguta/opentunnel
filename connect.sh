@@ -1,9 +1,15 @@
 #!/bin/bash
 
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || echo "$$")
-TEMP_USER=${2:-tunneluser}
-EXPIRE_MINUTES=${1:-60}
 BORE_PID=""
+
+if [[ "$1" =~ ^[0-9]+$ ]]; then
+    EXPIRE_MINUTES=$1
+    TEMP_USER=${2:-tunneluser}
+else
+    EXPIRE_MINUTES=${2:-60}
+    TEMP_USER=${1:-tunneluser}
+fi
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
