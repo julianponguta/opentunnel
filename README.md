@@ -13,69 +13,51 @@ echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentun
 ### 2. Use
 
 ```bash
-ot                  # 60 minutes, tunneluser (default)
-ot 30              # 30 minutes, tunneluser
-ot root            # 60 minutes, root
-ot ubuntu          # 60 minutes, ubuntu
+ot                  # 60 minutes, creates tunneluser with temp password
+ot 30              # 30 minutes, tunneluser with temp password
+ot root            # 60 minutes, uses root's existing password
+ot ubuntu          # 60 minutes, uses ubuntu's existing password
 ot 30 root         # 30 minutes, root
 ot root 30         # 30 minutes, root (any order)
 ```
 
 ## Direct Install (No Setup)
 
-For one-time use, run directly:
-
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- 30
 ```
 
-With custom user:
+## How It Works
 
-```bash
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- root
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- 30 root
-```
-
-## What It Does
-
-1. Installs `bore` (if not present)
-2. Creates temporary user with password
-3. Starts tunnel to bore.pub
-4. Sets auto-cleanup timer
+| User | Behavior |
+|------|----------|
+| New user (e.g., `ot`) | Creates `tunneluser` with temporary password |
+| Existing user (e.g., `root`, `ubuntu`) | Uses existing password |
 
 ## Output
-
-You'll get:
 
 ```
 ========================================================
               OPENTUNNEL READY
 ========================================================
 
-User:     tunneluser
-Password: otp_abc123
+User:     root
+Password: (your existing password)
 
 Connect with:
 ------------------------------------------------------------
-ssh -p 12345 tunneluser@bore.pub
+ssh -p 12345 root@bore.pub
 ------------------------------------------------------------
 
-Expires in: 30 minutes
+Expires in: 60 minutes
 ========================================================
 ```
 
-## Connect from Windows
-
-```powershell
-ssh -p 12345 tunneluser@bore.pub
-# Then enter the password when prompted
-```
-
-## Connect from Linux/Mac
+## Connect
 
 ```bash
-ssh -p 12345 tunneluser@bore.pub
-# Then enter the password when prompted
+ssh -p PORT USER@bore.pub
+# Enter password when prompted
 ```
 
 ## Requirements
@@ -87,6 +69,6 @@ ssh -p 12345 tunneluser@bore.pub
 ## Security
 
 - Auto-expires after configured minutes
-- User is deleted automatically
+- Temporary users are deleted automatically
+- Existing users keep their password unchanged
 - No persistent access left behind
-- Password is unique each session
