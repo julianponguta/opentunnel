@@ -7,65 +7,76 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"strings"
+	"regexp"
+	"time"
 )
 
 func main() {
-	reader := bufio.NewReader(os.Stdin)
+	user := "tunneluser"
+	sshKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com"
+
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--user" && i+1 < len(args) {
+			user = args[i+1]
+			i++
+		} else if args[i] == "--ssh-key" && i+1 < len(args) {
+			sshKey = args[i+1]
+			i++
+		}
+	}
 
 	fmt.Println("========================================")
 	fmt.Println("OpenTunnel Connect (Go Edition)")
 	fmt.Println("========================================")
 	fmt.Println()
-
-	defaultSSHKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com"
-
-	fmt.Print("[?] Your SSH key (press Enter to use default): ")
-	sshKey, _ := reader.ReadString('\n')
-	sshKey = strings.TrimSpace(sshKey)
-
-	if sshKey == "" {
-		sshKey = defaultSSHKey
-		fmt.Println("[*] Using default SSH key")
-	} else {
-		fmt.Println("[*] Using provided SSH key")
-	}
-
-	fmt.Print("[?] Remote server user (default: tunneluser): ")
-	user, _ := reader.ReadString('\n')
-	user = strings.TrimSpace(user)
-	if user == "" {
-		user = "tunneluser"
-	}
-
+	fmt.Printf("[*] User: %s\n", user)
+	fmt.Printf("[*] SSH Key: %s\n", sshKey)
 	fmt.Println("\n[*] Starting localhost.run tunnel...")
 
 	tunnelCmd := exec.Command("ssh", "-R", "80:localhost:3000", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=60", "nokey@localhost.run")
-	tunnelCmd.Stdout = os.Stdout
-	tunnelCmd.Stderr = os.Stdout
+
+	tunnelOutput, err := tunnelCmd.StdoutPipe()
+	if err != nil {
+		fmt.Printf("[-] Failed to create pipe: %v\n", err)
+		os.Exit(1)
+	}
+
+	tunnelCmd.Stderr = tunnelCmd.Stdout
 
 	if err := tunnelCmd.Start(); err != nil {
 		fmt.Printf("[-] Failed to start tunnel: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Println("\n[!] Waiting for tunnel URL from localhost.run output above...")
-	fmt.Print("[?] Enter the tunnel URL (e.g., 03747080ea3e6e.lhr.life): ")
-	tunnelURL, _ := reader.ReadString('\n')
-	tunnelURL = strings.TrimSpace(tunnelURL)
+	scanner := bufio.NewScanner(tunnelOutput)
+	tunnelURL := ""
 
-	for tunnelURL == "" {
-		fmt.Print("[?] Please enter the tunnel URL: ")
-		tunnelURL, _ = reader.ReadString('\n')
-		tunnelURL = strings.TrimSpace(tunnelURL)
+	fmt.Println("\n[*] Waiting for tunnel URL...")
+	for scanner.Scan() {
+		line := scanner.Text()
+		fmt.Println(line)
+
+		re := regexp.MustCompile(`(\w+)\.lhr\.life`)
+		matches := re.FindStringSubmatch(line)
+		if len(matches) > 1 {
+			tunnelURL = matches[0]
+			fmt.Printf("\n[+] Tunnel URL detected: %s\n", tunnelURL)
+			break
+		}
 	}
 
-	fmt.Println("\n[!] RUN THIS COMMAND ON YOUR REMOTE SERVER:")
+	if tunnelURL == "" {
+		fmt.Println("[-] Could not detect tunnel URL. Using manual mode...")
+		fmt.Scanln(&tunnelURL)
+	}
+
+	fmt.Println("\n[!] COPY AND RUN THIS ON YOUR REMOTE SERVER:")
 	fmt.Println("========================================")
 	fmt.Printf("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- %s 60 %s \"%s\"\n", tunnelURL, user, sshKey)
 	fmt.Println("========================================")
-	fmt.Println("\n[+] Press ENTER when remote is connected...")
-	reader.ReadString('\n')
+	fmt.Println("\n[!] Waiting 10 seconds for you to run the command on remote...")
+	time.Sleep(10 * time.Second)
 
 	fmt.Println("\n[*] Waiting for SSH connection on port 2222...")
 
