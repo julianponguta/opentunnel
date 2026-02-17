@@ -188,7 +188,9 @@ main() {
     
     log_info "Tunnel is active. Press Ctrl+C to stop (cleanup will run automatically)"
     
-    wait
+    while true; do
+        sleep 60
+    done
 }
 
 trap cleanup EXIT
