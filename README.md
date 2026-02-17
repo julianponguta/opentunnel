@@ -1,85 +1,26 @@
-# OpenTunnel
+# OpenTunnel - AI Agent Setup
 
-One-command SSH tunnel to access remote servers instantly.
+This file contains all the instructions AI agents need to set up and use OpenTunnel Connect.
 
----
+## Overview
 
-## Quick Start (Humans)
+OpenTunnel creates SSH tunnels to remote servers using:
+- **bore** - For SSH tunnel from remote to bore.pub
+- **localhost.run** - For local webhook to receive credentials
 
-```bash
-# Setup (once)
-echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@:-60}"; }' >> ~/.bashrc && source ~/.bashrc
+## Setup (One-Time)
 
-# Use (each time you need to connect)
-ot                  # 60 minutes, creates tunneluser with temp password
-ot 30              # 30 minutes
-ot root            # 60 minutes, uses root's existing password
-ot 30 root        # 30 minutes, root
-```
-
----
-
-## How It Works
-
-Two services working together:
-- **bore** - Creates SSH tunnel from remote server to bore.pub
-- **localhost.run** - Exposes webhook locally for receiving credentials
-
-### Without webhook (manual):
-
-1. Run script on remote server
-2. Get `bore.pub:PORT`
-3. Connect: `ssh -p PORT user@bore.pub`
-
-### With webhook (AI agents):
-
-See "For AI Agents" section below.
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  TU MÁQUINA (localhost.run)                            │
-│                                                         │
-│  node server.js ──► localhost.run ──► xxx.lhr.life    │
-│         ▲                                              │
-│         │ POST /connect                                │
-│         │ {user, password, host, port}               │
-└─────────┼───────────────────────────────────────────────┘
-          │
-          │ HTTP (puerto 80)
-          │
-┌─────────▼───────────────────────────────────────────────┐
-│  SERVIDOR REMOTO                                       │
-│                                                         │
-│  remote.sh ──► bore ──► bore.pub:PORT ──► SSH        │
-│       │                                                 │
-│       └──► useradd + password                           │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## Requirements
-
-- SSH installed on remote server
-- No additional software needed (bore auto-installs)
-- For webhook: Node.js + express
-
----
-
-## For AI Agents
-
-### Setup (one-time)
+### Step 1: Install ezssh-mcp globally
 
 ```bash
-# Install ezssh-mcp globally
 npm install -g ezssh-mcp
+```
 
-# Configure OpenCode MCP
-# Add to ~/.config/opencode/opencode.json:
+### Step 2: Configure OpenCode MCP
+
+Create or update `~/.config/opencode/opencode.json`:
+
+```json
 {
   "mcp": {
     "ezssh": {
@@ -88,59 +29,119 @@ npm install -g ezssh-mcp
     }
   }
 }
+```
 
-# Install skill
+### Step 3: Install opentunnel-connect Skill
+
+```bash
 npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+```
 
-# Install dependencies
+### Step 4: Install Dependencies
+
+```bash
 cd skills/opentunnel-connect && npm install
 ```
 
-### Usage Flow
+## Usage Flow
 
-**Step 1: Start webhook (your machine)**
+When user wants to connect to a remote server:
+
+### Step 1: Start Webhook Server (Your Machine)
+
+Run this on your local machine:
+
 ```bash
 cd skills/opentunnel-connect/scripts && node server.js
 ```
-Output: `xxx.lhr.life`
 
-**Step 2: Give command to remote user**
+Wait for output like:
+```
+========================================
+Server running! Share this URL:
+abc123.lhr.life
+========================================
+```
+
+Copy the URL (e.g., `abc123.lhr.life`).
+
+### Step 2: Provide Command to Remote User
+
+Give this command to the user to run on the remote server:
+
 ```
 curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- WEBHOOK_URL MINUTES USER
 ```
 
-Example:
+Replace:
+- `WEBHOOK_URL` - The URL from Step 1 (e.g., `abc123.lhr.life`)
+- `MINUTES` - Session duration (default: 60)
+- `USER` - Username to create (default: tunneluser)
+
+**Example:**
 ```
 curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- abc123.lhr.life 60 root
 ```
 
-**Step 3: Receive credentials**
+### Step 3: Wait for Credentials
 
-Webhook receives POST at `/connect`:
+Poll the status endpoint:
+
+```bash
+curl http://localhost:3000/status
+```
+
+When ready, response will be:
 ```json
 {
-  "user": "root",
-  "password": "otp_abc123...",
-  "host": "bore.pub",
-  "port": 12345
+  "status": "ready",
+  "credentials": {
+    "user": "root",
+    "password": "otp_abc123...",
+    "host": "bore.pub",
+    "port": 12345
+  }
 }
 ```
 
-**Step 4: Connect via ezssh-mcp**
+### Step 4: Connect via SSH
 
-```json
-{
-  "host": "bore.pub",
-  "port": 12345,
-  "username": "root",
-  "password": "otp_abc123..."
-}
+Use ezssh-mcp tool with these credentials:
+
+- **host**: `bore.pub`
+- **port**: [port from credentials]
+- **username**: [user from credentials]
+- **password**: [password from credentials]
+
+## Command Reference
+
+### Local (server.js)
+
+```bash
+# Default port 3000
+node server.js
+
+# Custom port
+node server.js 8080
 ```
 
----
+### Remote (remote.sh)
+
+```bash
+remote.sh <webhook_url> [minutes] [username]
+
+# Example:
+# remote.sh abc123.lhr.life 60 root
+```
 
 ## Files
 
-- `connect.sh` - Standalone script for humans (no webhook)
-- `skills/opentunnel-connect/scripts/server.js` - Webhook server
+- `skills/opentunnel-connect/scripts/server.js` - Local webhook server
 - `skills/opentunnel-connect/scripts/remote.sh` - Remote server script
+- `skills/opentunnel-connect/SKILL.md` - Skill definition
+
+## Troubleshooting
+
+- **Webhook not receiving credentials**: Check remote server has internet access
+- **Connection fails**: Verify credentials and try again
+- **bore not installing**: Manually install: `curl -fsSL https://getbore.io | bash`
