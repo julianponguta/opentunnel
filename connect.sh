@@ -1,83 +1,68 @@
 #!/bin/bash
 
-if [ "$EUID" -ne 0 ]; then
-    echo "Please run as root or with sudo"
+# OpenTunnel - Simple reverse SSH tunnel
+# Usage: ot [minutes] [username]
+# Example: ot 60 root
+
+SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
+TEMP_USER="tunneluser"
+EXPIRE_MINUTES=60
+BORE_PID=""
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+log_info() { echo -e "${GREEN}[+]${NC} $1" >&2; }
+log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
+
+# Parse arguments
+if [[ "$1" =~ ^[0-9]+$ ]]; then
+    EXPIRE_MINUTES=$1
+    TEMP_USER="${2:-tunneluser}"
+elif [ -n "$1" ]; then
+    TEMP_USER="$1"
+    EXPIRE_MINUTES="${2:-60}"
+fi
+
+# Check for SSH key in argument or prompt
+SSH_KEY=""
+if [ -n "$1" ] && [[ "$1" =~ ^ssh- ]]; then
+    SSH_KEY="$1"
+elif [ -n "$2" ] && [[ "$2" =~ ^ssh- ]]; then
+    SSH_KEY="$2"
+fi
+
+if [ -z "$SSH_KEY" ]; then
+    echo -n "Enter your SSH public key: "
+    read SSH_KEY
+fi
+
+if [ -z "$SSH_KEY" ]; then
+    log_error "SSH key required"
     exit 1
 fi
 
-SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
-
-if [[ "$1" =~ ^[0-9]+$ ]]; then
-    EXPIRE_MINUTES=$1
-    TEMP_USER=${2:-tunneluser}
-    WEBHOOK_URL=${3:-}
-else
-    TEMP_USER=${1:-tunneluser}
-    EXPIRE_MINUTES=${2:-60}
-    WEBHOOK_URL=${3:-}
-fi
-
-cleanup() {
-    echo "[*] Cleaning up..."
-    pkill -f "bore.*${SESSION_ID}" 2>/dev/null || true
-    pkill -f "localhost.run" 2>/dev/null || true
+setup_user_with_key() {
+    local user=$1
+    local key=$2
     
-    if [ -f /tmp/ot_pass ]; then
-        if [ "$(cat /tmp/ot_pass)" != "existing" ]; then
-            userdel -r "${TEMP_USER}" 2>/dev/null || true
-        fi
-    fi
-    
-    rm -f /tmp/ot_pass /tmp/ot_url /tmp/ot_bore.log
-    echo "[*] Cleanup complete"
-}
-
-setup_user() {
-    echo "[*] Setting up SSH user: ${TEMP_USER}"
-    
-    if id "${TEMP_USER}" &>/dev/null; then
-        echo "[*] User ${TEMP_USER} exists"
-        echo "existing" > /tmp/ot_pass
+    if [ "$user" = "root" ]; then
+        HOME_DIR="/root"
     else
-        PASS="otp_$(openssl rand -hex 6)"
-        useradd -m -s /bin/bash "${TEMP_USER}"
-        echo "${TEMP_USER}:${PASS}" | chpasswd
-        echo "$PASS" > /tmp/ot_pass
-        echo "[*] Created user ${TEMP_USER} with temp password"
+        HOME_DIR="/home/${user}"
     fi
-}
-
-setup_timer() {
-    echo "[*] Setting up cleanup timer for ${EXPIRE_MINUTES} minutes..."
     
-    if command -v systemctl &> /dev/null; then
-        cat > /tmp/ot-cleanup.service << EOF
-[Unit]
-Description=OpenTunnel Cleanup
-
-[Service]
-Type=oneshot
-ExecStart=/bin/bash -c "userdel -r ${TEMP_USER} 2>/dev/null; pkill -f bore 2>/dev/null; pkill -f localhost.run 2>/dev/null"
-EOF
-
-        cat > /tmp/ot-cleanup.timer << EOF
-[Unit]
-Description=Auto cleanup after ${EXPIRE_MINUTES} minutes
-
-[Timer]
-OnActiveSec=${EXPIRE_MINUTES}min
-Unit=ot-cleanup.service
-
-[Install]
-WantedBy=timers.target
-EOF
-
-        mv /tmp/ot-cleanup.service /etc/systemd/system/
-        mv /tmp/ot-cleanup.timer /etc/systemd/system/
-        systemctl daemon-reload
-        systemctl enable ot-cleanup.timer
-        systemctl start ot-cleanup.timer
+    mkdir -p "${HOME_DIR}/.ssh"
+    chmod 700 "${HOME_DIR}/.ssh"
+    
+    if ! grep -qF "$key" "${HOME_DIR}/.ssh/authorized_keys" 2>/dev/null; then
+        echo "$key" >> "${HOME_DIR}/.ssh/authorized_keys"
     fi
+    chmod 600 "${HOME_DIR}/.ssh/authorized_keys"
+    chown -R "${user}:${user}" "${HOME_DIR}/.ssh"
+    
+    log_info "SSH key added for user ${user}"
 }
 
 install_bore() {
@@ -85,7 +70,7 @@ install_bore() {
         return 0
     fi
     
-    echo "[*] Installing bore..."
+    log_info "Installing bore..."
     
     ARCH=$(uname -m)
     case $ARCH in
@@ -100,135 +85,72 @@ install_bore() {
     if curl -fsSL "$URL" | tar -xz -C /tmp 2>/dev/null; then
         mv /tmp/bore /usr/local/bin/bore
         chmod +x /usr/local/bin/bore
-        echo "[*] bore installed"
+        log_info "bore installed"
         return 0
     fi
     
-    echo "[!] Failed to install bore"
     return 1
 }
 
-start_bore_tunnel() {
-    echo "[*] Starting bore tunnel..."
+start_tunnel() {
+    log_info "Starting bore tunnel..."
     
-    bore local 22 --to bore.pub > /tmp/ot_bore.log 2>&1 &
+    bash -c 'bore local 22 --to bore.pub 2>&1' > /tmp/ot_bore.log &
+    BORE_PID=$!
     
-    for i in $(seq 1 30); do
-        PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
-        if [ -n "$PORT" ]; then
-            echo "[*] Tunnel ready on bore.pub:${PORT}"
-            return 0
+    for i in $(seq 1 10); do
+        if [ -s /tmp/ot_bore.log ]; then
+            PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
+            if [ -n "$PORT" ]; then
+                log_info "Tunnel ready on port ${PORT}"
+                echo "$PORT"
+                return 0
+            fi
         fi
         sleep 1
     done
     
+    log_error "Failed to establish tunnel"
     return 1
 }
 
-send_credentials() {
-    local user=$1
-    local pass=$2
-    local port=$3
-    local webhook=$4
-    
-    if [ -z "$webhook" ]; then
-        echo "[*] No webhook URL provided, skipping..."
-        return 0
-    fi
-    
-    echo "[*] Sending credentials to webhook..."
-    
-    local payload=$(cat <<EOF
-{
-    "user": "${user}",
-    "password": "${pass}",
-    "host": "bore.pub",
-    "port": ${port}
-}
-EOF
-)
-    
-    for i in 1 2 3; do
-        if curl -fsSL -X POST "http://${webhook}/connect" \
-            -H "Content-Type: application/json" \
-            -d "$payload" 2>/dev/null; then
-            echo "[*] Credentials sent!"
-            return 0
-        fi
-        sleep 2
-    done
-    
-    echo "[!] Failed to send credentials"
-    return 1
+cleanup() {
+    [ -n "$BORE_PID" ] && kill $BORE_PID 2>/dev/null
+    pkill -f "bore.*${SESSION_ID}" 2>/dev/null
+    rm -f /tmp/ot_bore.log
 }
 
-print_info() {
-    local port=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | sed 's/bore\.pub://')
-    local pass=$(cat /tmp/ot_pass)
-    
-    echo ""
-    echo "========================================================"
-    echo "              OPENTUNNEL READY"
-    echo "========================================================"
-    echo ""
-    echo "Host: bore.pub"
-    echo "Port: ${port}"
-    echo "User: ${TEMP_USER}"
-    
-    if [ "$pass" = "existing" ]; then
-        echo "Password: (your existing password)"
-    else
-        echo "Password: ${pass}"
-    fi
-    
-    echo ""
-    echo "Connect with:"
-    echo "------------------------------------------------------------"
-    echo "ssh -p ${port} ${TEMP_USER}@bore.pub"
-    echo "------------------------------------------------------------"
-    echo ""
-    echo "Expires in: ${EXPIRE_MINUTES} minutes"
-    echo "========================================================"
-    echo ""
-}
+# Main
+if [ "$EUID" -ne 0 ]; then
+    log_error "Please run as root or with sudo"
+    exit 1
+fi
 
-main() {
-    echo "[*] Starting OpenTunnel..."
-    
-    if ! install_bore; then
-        echo "[!] Cannot proceed without bore"
-        exit 1
-    fi
-    
-    setup_user
-    setup_timer
-    
-    if ! start_bore_tunnel; then
-        echo "[!] Failed to establish tunnel"
-        cat /tmp/ot_bore.log
-        exit 1
-    fi
-    
-    PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | sed 's/bore\.pub://')
-    
-    PASS=$(cat /tmp/ot_pass)
-    
-    if [ -n "$WEBHOOK_URL" ]; then
-        send_credentials "$TEMP_USER" "$PASS" "$PORT" "$WEBHOOK_URL"
-    fi
-    
-    print_info
-    
-    echo "[*] Tunnel active in background. Will auto-cleanup in ${EXPIRE_MINUTES} minutes"
-    
-    # Keep running in background
-    nohup bash -c "wait; sleep $((EXPIRE_MINUTES * 60))" > /dev/null 2>&1 &
-    
-    disown
-    
-    exit 0
-}
+log_info "OpenTunnel - ${EXPIRE_MINUTES} minutes, user: ${TEMP_USER}"
+
+if ! install_bore; then
+    log_error "Failed to install bore"
+    exit 1
+fi
+
+setup_user_with_key "$TEMP_USER" "$SSH_KEY"
+
+PORT=$(start_tunnel) || exit 1
+
+echo ""
+echo "========================================================"
+echo -e "              ${GREEN}CONNECTED${NC}"
+echo "========================================================"
+echo ""
+echo "Tunnel: bore.pub:${PORT}"
+echo "User: ${TEMP_USER}"
+echo ""
+echo "COPY TO YOUR LOCAL MACHINE:"
+echo "  bore.pub:${PORT}"
+echo ""
+echo "Auto-disconnecting in ${EXPIRE_MINUTES} minutes"
+echo "========================================================"
 
 trap cleanup EXIT INT TERM
 
-main
+sleep $((EXPIRE_MINUTES * 60))

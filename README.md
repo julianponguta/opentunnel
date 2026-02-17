@@ -1,69 +1,59 @@
-# OpenTunnel Connect
+# OpenTunnel
 
 Connect to remote servers behind NAT/firewall using reverse SSH tunnels.
 
 ---
 
-# Basic Usage
+# Quick Install (Manual Use)
 
-## Step 1: Get Your SSH Key
+## Install on your server
 
-The binary automatically reads or creates your SSH key from `~/.ssh/id_ed25519`
-
-## Step 2: Run Command on Remote Server
-
-Run this on your **remote server**:
+Add this to your `~/.bashrc`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- root --daemon "ssh-ed25519 AAAA..."
+echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@:-60}"; }' >> ~/.bashrc && source ~/.bashrc
 ```
 
-- `root` = username
-- `--daemon` = run in background and exit
-- `ssh-ed25519...` = your public key
-
-## Step 3: Get Tunnel Info
-
-The remote will output:
-```
-Tunnel: bore.pub:12345
-```
-
-## Step 4: Connect
+## Usage
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 root@bore.pub -p 12345
+# Default: 60 minutes, tunneluser
+ot
+
+# 30 minutes, tunneluser
+ot 30
+
+# 60 minutes, root
+ot 60 root
+
+# With SSH key inline
+ot 60 root "ssh-ed25519 AAAA..."
+
+# Or enter SSH key when prompted
+ot 60 root
+# Then paste your key
 ```
 
 ---
 
 # OpenCode Skill
 
-## Flow
+See `skills/opentunnel-connect/SKILL.md`
 
-1. **Ask user**: username and minutes
-2. **Execute**: opentunnel.exe --user USERNAME --minutes MINUTES
-3. **User runs** curl command on remote server
-4. **User provides**: bore.pub:PORT
-5. **Connect**: ezssh_ssh_execute with credentials
+---
 
-## Credentials Format
+# Files
 
-```
---- CREDENTIALS ---
-HOST_PORT=bore.pub:12345
-USER=root
---- END CREDENTIALS ---
-```
+- `connect.sh` - Main script for manual use
+- `opentunnel.exe` - Windows binary for OpenCode
+- `opentunnel.go` - Go source code
+- `skills/opentunnel-connect/` - OpenCode skill
 
-## ezssh Connection
+---
 
-```javascript
-ezssh_ssh_execute({
-  command: "hostname && uptime",
-  hosts: ["bore.pub"],
-  port: 12345,
-  username: "root",
-  privateKeyPath: "C:/Users/Julian/.ssh/id_ed25519"
-})
-```
+# How it works
+
+1. **Local**: Get your SSH key
+2. **Remote**: Run `ot` command → creates SSH tunnel via bore
+3. **Remote**: Shows `bore.pub:PORT`
+4. **Local**: Connect to `bore.pub:PORT`
