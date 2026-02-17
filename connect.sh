@@ -121,27 +121,23 @@ setup_ssh_user() {
 start_tunnel() {
     log_info "Starting bore tunnel..."
     
-    bore local 22 --to bore.pub 2>&1 | tee /tmp/opentunnel.log &
+    bore local 22 --to bore.pub > /tmp/opentunnel.log 2>&1 &
     BORE_PID=$!
     
-    sleep 2
+    sleep 1
     
-    if ! ps -p $BORE_PID > /dev/null 2>&1; then
-        log_error "Failed to start bore tunnel"
-        cat /tmp/opentunnel.log
-        exit 1
-    fi
-    
-    for i in 1 2 3 4 5; do
+    for i in 1 2 3 4 5 6 7 8 9 10; do
         sleep 1
-        BORE_URL=$(grep -oE '[0-9]+\.bore\.pub' /tmp/opentunnel.log | head -1)
-        if [ -n "$BORE_URL" ]; then
-            break
+        if [ -f /tmp/opentunnel.log ]; then
+            BORE_URL=$(grep -oE 'bore\.pub:[0-9]+' /tmp/opentunnel.log | head -1 | sed 's/bore\.pub://')
+            if [ -n "$BORE_URL" ]; then
+                break
+            fi
         fi
     done
     
     if [ -z "$BORE_URL" ]; then
-        log_error "Could not get bore URL after 5 seconds"
+        log_error "Could not get bore URL after 10 seconds"
         cat /tmp/opentunnel.log
         kill $BORE_PID 2>/dev/null || true
         exit 1
@@ -159,12 +155,12 @@ print_output() {
     echo -e "              ${GREEN}OPENTUNNEL READY${NC}"
     echo "========================================================"
     echo ""
-    echo "Tunnel: ${bore_url}"
+    echo "Tunnel: ${bore_url}.bore.pub"
     echo "User:   ${TEMP_USER}"
     echo ""
     echo "Copy and run this on your local machine:"
     echo "------------------------------------------------------------"
-    echo -e "${YELLOW}ssh -o StrictHostKeyChecking=no -i ${KEY_PATH} ${TEMP_USER}@${bore_url}${NC}"
+    echo -e "${YELLOW}ssh -o StrictHostKeyChecking=no -i ${KEY_PATH} ${TEMP_USER}@${bore_url}.bore.pub${NC}"
     echo "------------------------------------------------------------"
     echo ""
     echo "Key saved at: ${KEY_PATH}"
