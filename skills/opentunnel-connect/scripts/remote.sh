@@ -96,24 +96,27 @@ install_bore() {
 start_tunnel() {
     log_info "Starting bore tunnel..."
     
-    bore local 22 --to bore.pub > /tmp/ot_bore.log 2>&1 &
+    # Run bore with unbuffered output
+    stdbuf -oL -eL bore local 22 --to bore.pub > /tmp/ot_bore.log 2>&1 &
     BORE_PID=$!
     
     log_info "Waiting for bore to start..."
-    sleep 3
     
-    if [ -f /tmp/ot_bore.log ]; then
-        log_info "bore log:"
-        cat /tmp/ot_bore.log >&2
-        PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
-        if [ -n "$PORT" ]; then
-            log_info "Tunnel ready on port ${PORT}"
-            echo "$PORT"
-            return 0
+    for i in $(seq 1 15); do
+        if [ -f /tmp/ot_bore.log ] && [ -s /tmp/ot_bore.log ]; then
+            cat /tmp/ot_bore.log >&2
+            PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
+            if [ -n "$PORT" ]; then
+                log_info "Tunnel ready on port ${PORT}"
+                echo "$PORT"
+                return 0
+            fi
         fi
-    fi
+        sleep 1
+    done
     
     log_error "Failed to get bore port"
+    [ -f /tmp/ot_bore.log ] && cat /tmp/ot_bore.log >&2
     return 1
 }
 
