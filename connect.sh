@@ -1,13 +1,14 @@
 #!/bin/bash
 
 # OpenTunnel - Simple reverse SSH tunnel
-# Usage: ot [minutes] [username]
-# Example: ot 60 root
+# Usage: ot [minutes] [username] [ssh_key]
+# Example: ot 60 root "ssh-ed25519..."
 
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
 TEMP_USER="tunneluser"
 EXPIRE_MINUTES=60
 BORE_PID=""
+SSH_KEY=""
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -16,23 +17,18 @@ NC='\033[0m'
 log_info() { echo -e "${GREEN}[+]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
-# Parse arguments
-if [[ "$1" =~ ^[0-9]+$ ]]; then
-    EXPIRE_MINUTES=$1
-    TEMP_USER="${2:-tunneluser}"
-elif [ -n "$1" ]; then
-    TEMP_USER="$1"
-    EXPIRE_MINUTES="${2:-60}"
-fi
+# Parse arguments - order: minutes, username, ssh_key
+for arg in "$@"; do
+    if [[ "$arg" =~ ^ssh- ]]; then
+        SSH_KEY="$arg"
+    elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+        EXPIRE_MINUTES="$arg"
+    elif [ -n "$arg" ] && [ "$arg" != "$SSH_KEY" ]; then
+        TEMP_USER="$arg"
+    fi
+done
 
-# Check for SSH key in argument or prompt
-SSH_KEY=""
-if [ -n "$1" ] && [[ "$1" =~ ^ssh- ]]; then
-    SSH_KEY="$1"
-elif [ -n "$2" ] && [[ "$2" =~ ^ssh- ]]; then
-    SSH_KEY="$2"
-fi
-
+# If no SSH key provided, prompt for it
 if [ -z "$SSH_KEY" ]; then
     echo -n "Enter your SSH public key: "
     read SSH_KEY
