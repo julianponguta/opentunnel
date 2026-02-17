@@ -2,12 +2,11 @@
 
 WEBHOOK_URL=""
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
-TEMP_USER="tunneluser"
-EXPIRE_MINUTES=60
+TEMP_USER="tPIRE_MINUTES=60
 BORE_PID=""
-MAX_RETRIES=3
 
-RED='\033[0;31m'
+RED='\unneluser"
+EX033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
@@ -16,18 +15,17 @@ NC='\033[0m'
 log_info() { echo -e "${GREEN}[+]${NC} $1" >&2; }
 log_warn() { echo -e "${YELLOW}[!]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
-log_step() { echo -e "${BLUE}[>]${NC} $1" >&2; }
 
 usage() {
     echo "Usage: $0 <webhook_url> [minutes] [username]"
     echo ""
     echo "Arguments:"
-    echo "  webhook_url   The bore.pub URL from local machine (e.g., bore.pub:12345)"
+    echo "  webhook_url   The localhost.run URL from local machine (e.g., xxx.lhr.life)"
     echo "  minutes       Minutes until auto-disconnect (default: 60)"
     echo "  username      SSH user to create (default: tunneluser)"
     echo ""
     echo "Example:"
-    echo "  $0 bore.pub:12345 60 root"
+    echo "  $0 xxx.lhr.life 60 root"
     exit 1
 }
 
@@ -62,7 +60,7 @@ setup_user() {
     
     if useradd -m -s /bin/bash "${TEMP_USER}" 2>/dev/null; then
         echo "${TEMP_USER}:${PASS}" | chpasswd
-        log_info "Created user ${TEMP_USER} with password"
+        log_info "Created user ${TEMP_USER}"
         echo "$PASS"
     else
         log_error "Failed to create user"
@@ -72,7 +70,6 @@ setup_user() {
 
 install_bore() {
     if command -v bore &> /dev/null; then
-        log_info "bore already installed"
         return 0
     fi
     
@@ -82,7 +79,6 @@ install_bore() {
     case $ARCH in
         x86_64) BORE_ARCH="x86_64" ;;
         aarch64) BORE_ARCH="aarch64" ;;
-        arm64) BORE_ARCH="aarch64" ;;
         *) BORE_ARCH="x86_64" ;;
     esac
     
@@ -90,20 +86,16 @@ install_bore() {
     URL="https://github.com/ekzhang/bore/releases/download/v${VERSION}/bore-v${VERSION}-${BORE_ARCH}-unknown-linux-musl.tar.gz"
     
     if curl -fsSL "$URL" | tar -xz -C /tmp 2>/dev/null; then
-        if mv /tmp/bore /usr/local/bin/bore 2>/dev/null; then
-            chmod +x /usr/local/bin/bore
-            log_info "bore installed successfully"
-            return 0
-        fi
+        mv /tmp/bore /usr/local/bin/bore
+        chmod +x /usr/local/bin/bore
+        log_info "bore installed"
+        return 0
     fi
     
-    log_error "Failed to install bore"
     return 1
 }
 
 wait_for_bore() {
-    log_step "Waiting for bore tunnel..."
-    
     for i in $(seq 1 30); do
         if [ -f /tmp/ot_bore.log ]; then
             PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
@@ -113,23 +105,22 @@ wait_for_bore() {
         fi
         sleep 1
     done
-    
     return 1
 }
 
 start_tunnel() {
-    log_step "Starting bore tunnel to ${WEBHOOK_URL}..."
+    log_info "Starting bore tunnel..."
     
-    bore local 22 --to "$WEBHOOK_URL" > /tmp/ot_bore.log 2>&1 &
+    bore local 22 --to bore.pub > /tmp/ot_bore.log 2>&1 &
     BORE_PID=$!
     
     if ! wait_for_bore; then
-        log_error "Failed to establish tunnel after 30s"
+        log_error "Failed to establish tunnel"
         cat /tmp/ot_bore.log
         return 1
     fi
     
-    PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
+    PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | sed 's/bore\.pub://')
     log_info "Tunnel ready on port ${PORT}"
     echo "$PORT"
 }
@@ -149,22 +140,20 @@ send_credentials() {
 EOF
 )
     
-    log_step "Sending credentials to webhook..."
+    log_info "Sending credentials to webhook..."
     
-    local retries=3
-    while [ $retries -gt 0 ]; do
-        if curl -fsSL -X POST "https://${WEBHOOK_URL}/connect" \
+    for i in 1 2 3; do
+        if curl -fsSL -X POST "http://${WEBHOOK_URL}/connect" \
             -H "Content-Type: application/json" \
             -d "$payload" 2>/dev/null; then
-            log_info "Credentials sent successfully!"
+            log_info "Credentials sent!"
             return 0
         fi
-        retries=$((retries - 1))
-        log_warn "Failed to send credentials, retrying... ($retries left)"
+        log_warn "Retrying..."
         sleep 2
     done
     
-    log_error "Failed to send credentials after 3 attempts"
+    log_error "Failed to send credentials"
     return 1
 }
 
@@ -184,7 +173,6 @@ cleanup() {
     fi
     
     rm -f /tmp/ot_pass /tmp/ot_bore.log
-    log_info "Cleanup complete"
 }
 
 main() {
@@ -198,45 +186,33 @@ main() {
     log_info "Starting OpenTunnel Connect..."
     log_info "Webhook: ${WEBHOOK_URL}"
     log_info "User: ${TEMP_USER}"
-    log_info "Expires: ${EXPIRE_MINUTES} minutes"
     
     if ! install_bore; then
-        log_error "Failed to install dependencies"
+        log_error "Failed to install bore"
         exit 1
     fi
     
-    PASS=$(setup_user)
-    if [ $? -ne 0 ]; then
-        exit 1
-    fi
+    PASS=$(setup_user) || exit 1
     echo "$PASS" > /tmp/ot_pass
     
-    PORT=$(start_tunnel)
-    if [ $? -ne 0 ] || [ -z "$PORT" ]; then
-        log_error "Failed to start tunnel"
-        exit 1
-    fi
+    PORT=$(start_tunnel) || exit 1
     
-    if ! send_credentials "$TEMP_USER" "$PASS" "$PORT"; then
-        log_error "Failed to send credentials"
-        exit 1
-    fi
+    send_credentials "$TEMP_USER" "$PASS" "$PORT"
     
     echo ""
     echo "========================================================"
     echo -e "              ${GREEN}CONNECTED${NC}"
     echo "========================================================"
     echo ""
-    echo "Tunnel established on port: ${PORT}"
-    echo "Credentials sent to: https://${WEBHOOK_URL}"
+    echo "Tunnel: bore.pub:${PORT}"
+    echo "User: ${TEMP_USER}"
+    echo "Password: ${PASS}"
     echo ""
     echo "Auto-disconnecting in ${EXPIRE_MINUTES} minutes"
     echo "========================================================"
     echo ""
     
     sleep $((EXPIRE_MINUTES * 60))
-    
-    log_info "Session expired"
 }
 
 trap cleanup EXIT INT TERM

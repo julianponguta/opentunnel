@@ -17,22 +17,36 @@ ot root            # 60 minutes, uses root's existing password
 ot 30 root        # 30 minutes, root
 ```
 
+With webhook (for AI agents):
+```bash
+ot 60 root bore.pub:12345   # 60 min, root, webhook at bore.pub:12345
+```
+
 ---
 
 ## How It Works
 
-Uses [localhost.run](https://localhost.run) to create SSH tunnels:
+Uses two services:
+- **bore** - Creates SSH tunnel from remote server to bore.pub
+- **localhost.run** - Optional webhook for AI agents to receive credentials
 
-1. Runs `ssh -R 80:localhost:22 localhost.run` on remote server
-2. Gets a public URL like `xxx.lhr.life`
-3. You connect directly via that URL
+### Without webhook (manual):
+1. Run script on remote server
+2. Get `bore.pub:PORT`
+3. Connect: `ssh -p PORT user@bore.pub`
+
+### With webhook (AI agents):
+1. Start webhook server locally (uses localhost.run)
+2. Run script on remote with webhook URL
+3. Webhook receives credentials automatically
+4. AI connects via ezssh-mcp
 
 ---
 
 ## Requirements
 
 - SSH installed on remote server
-- No additional software needed (uses built-in SSH)
+- No additional software needed (bore auto-installs)
 
 ---
 

@@ -8,7 +8,7 @@ const app = express();
 app.use(express.json());
 
 let credentials = null;
-let boreProcess = null;
+let tunnelProcess = null;
 let server = null;
 
 const SESSION_DIR = path.join(os.homedir(), '.opentunnel');
@@ -22,200 +22,74 @@ function ensureDir() {
 
 function checkDependencies() {
     ensureDir();
-    if (fs.existsSync(FLAG_FILE)) {
-        return true;
-    }
-    return false;
+    return fs.existsSync(FLAG_FILE);
 }
 
 function markInstalled() {
     try {
         ensureDir();
         fs.writeFileSync(FLAG_FILE, new Date().toISOString());
-        console.log('Flag created: ' + FLAG_FILE);
+        console.log('Flag created:', FLAG_FILE);
     } catch (e) {
         console.error('Failed to create flag:', e.message);
     }
 }
 
-function getBoreBinary() {
-    const isWindows = process.platform === 'win32';
-    const binDir = path.join(SESSION_DIR, 'bin');
-    const borePath = path.join(binDir, isWindows ? 'bore.exe' : 'bore');
-    
-    if (fs.existsSync(borePath)) {
-        return borePath;
-    }
-    
-    return null;
-}
-
-function installBore() {
-    const boreBin = getBoreBinary();
-    if (boreBin) {
-        return boreBin;
-    }
-    
-    const isWindows = process.platform === 'win32';
-    const binDir = path.join(SESSION_DIR, 'bin');
-    
-    ensureDir();
-    if (!fs.existsSync(binDir)) {
-        fs.mkdirSync(binDir, { recursive: true });
-    }
-    
-    const version = '0.6.0';
-    let url, destPath;
-    
-    if (isWindows) {
-        const arch = process.arch === 'x64' ? 'x86_64' : 'aarch64';
-        url = `https://github.com/ekzhang/bore/releases/download/v${version}/bore-v${version}-${arch}-pc-windows-msvc.zip`;
-        destPath = path.join(binDir, 'bore.exe');
-    } else {
-        const arch = process.arch === 'x64' ? 'x86_64' : (process.arch === 'arm64' ? 'aarch64' : 'x86_64');
-        url = `https://github.com/ekzhang/bore/releases/download/v${version}/bore-v${version}-${arch}-unknown-linux-musl.tar.gz`;
-        destPath = path.join(binDir, 'bore');
-    }
-    
-    console.log(`Downloading bore from ${url}...`);
-    
-    const tempFile = path.join(os.tmpdir(), isWindows ? 'bore.zip' : 'bore.tar.gz');
-    
-    try {
-        execSync(`curl -fsSL "${url}" -o "${tempFile}"`, { stdio: 'inherit' });
-        
-        if (isWindows) {
-            const AdmZip = require('adm-zip');
-            const zip = new AdmZip(tempFile);
-            zip.extractAllTo(binDir, true);
-        } else {
-            execSync(`tar -xzf "${tempFile}" -C "${binDir}"`, { shell: true });
-            fs.chmodSync(destPath, '755');
-        }
-        
-        try { fs.unlinkSync(tempFile); } catch(e) {}
-        
-        if (fs.existsSync(destPath)) {
-            console.log('bore installed successfully');
-            return destPath;
-        }
-    } catch (e) {
-        console.error('Failed to download bore:', e.message);
-    }
-    
-    return null;
-}
-
-function getBoreCommand() {
-    const isWindows = process.platform === 'win32';
-    
-    if (isWindows) {
-        console.log('Windows detected, using WSL for bore tunnel...');
-        
-        try {
-            execSync('wsl -e which bore', { stdio: 'ignore' });
-            console.log('bore found in WSL');
-        } catch (e) {
-            console.log('Installing bore in WSL...');
-            try {
-                execSync('wsl -e bash -c "curl -fsSL https://github.com/ekzhang/bore/releases/download/v0.6.0/bore-v0.6.0-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /tmp && sudo mv /tmp/bore /usr/local/bin/ && sudo chmod +x /usr/local/bin/bore"', { 
-                    stdio: 'inherit',
-                    timeout: 60000
-                });
-            } catch (err) {
-                console.error('Failed to install bore in WSL:', err.message);
-            }
-        }
-        
-        return {
-            cmd: 'wsl',
-            args: ['-e', 'bash', '-c', 'bore local 3000 --to bore.pub'],
-            useShell: false
-        };
-    }
-    
-    let boreBin = getBoreBinary();
-    
-    if (!boreBin || !fs.existsSync(boreBin)) {
-        boreBin = installBore();
-    }
-    
-    if (boreBin && fs.existsSync(boreBin)) {
-        return { 
-            cmd: boreBin, 
-            args: ['local', '3000', '--to', 'bore.pub'],
-            useShell: false
-        };
-    }
-    
-    return { cmd: 'bore', args: ['local', '3000', '--to', 'bore.pub'], useShell: false };
-}
-
-function startBoreTunnel(port) {
+function startLocalhostRunTunnel(port) {
     return new Promise((resolve, reject) => {
-        const { cmd, args, useShell } = getBoreCommand();
-        const actualArgs = args.map(a => String(a).replace('3000', String(port)));
+        console.log('Starting localhost.run tunnel...');
         
-        console.log(`Starting: ${cmd} ${actualArgs.join(' ')}`);
+        tunnelProcess = spawn('ssh', [
+            '-o', 'StrictHostKeyChecking=no',
+            '-o', 'ServerAliveInterval=60',
+            '-R', `80:localhost:${port}`,
+            'nokey@localhost.run'
+        ], {
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
         
-        try {
-            boreProcess = spawn(cmd, actualArgs, {
-                stdio: ['ignore', 'pipe', 'pipe'],
-                shell: useShell,
-                windowsHide: true
-            });
-        } catch (e) {
-            reject(e);
-            return;
-        }
+        let url = '';
+        let output = '';
         
-        let boreUrl = '';
-        let stderrOutput = '';
-        
-        boreProcess.stdout.on('data', (data) => {
-            const output = data.toString();
-            console.log('[bore out]', output.trim());
+        tunnelProcess.stdout.on('data', (data) => {
+            const text = data.toString();
+            output += text;
+            console.log('[localhost.run]', text.trim());
             
-            const match = output.match(/bore\.pub:(\d+)/);
+            const match = text.match(/([a-zA-Z0-9.-]+)\.lhr\.life/);
             if (match) {
-                boreUrl = match[1];
+                url = match[1];
             }
         });
         
-        boreProcess.stderr.on('data', (data) => {
-            const output = data.toString();
-            stderrOutput += output;
-            console.log('[bore err]', output.trim());
-            
-            const match = output.match(/bore\.pub:(\d+)/);
-            if (match) {
-                boreUrl = match[1];
-            }
+        tunnelProcess.stderr.on('data', (data) => {
+            const text = data.toString();
+            output += text;
+            console.log('[localhost.run]', text.trim());
         });
         
-        boreProcess.on('error', (err) => {
-            console.error('[bore error]', err.message);
+        tunnelProcess.on('error', (err) => {
             reject(err);
         });
         
-        boreProcess.on('close', (code) => {
+        tunnelProcess.on('close', (code) => {
             if (code !== 0 && code !== null) {
-                console.log('[bore closed]', `code: ${code}`);
+                console.log('[localhost.run closed]', code);
             }
         });
         
         let attempts = 0;
         const maxAttempts = 30;
         
-        const checkInterval = setInterval(() => {
+        const check = setInterval(() => {
             attempts++;
             
-            if (boreUrl) {
-                clearInterval(checkInterval);
-                resolve(boreUrl);
+            if (url) {
+                clearInterval(check);
+                resolve(url + '.lhr.life');
             } else if (attempts >= maxAttempts) {
-                clearInterval(checkInterval);
-                reject(new Error(`Timeout waiting for bore (${maxAttempts}s). stderr: ${stderrOutput.slice(-500)}`));
+                clearInterval(check);
+                reject(new Error(`Timeout waiting for tunnel. Output: ${output.slice(-500)}`));
             } else {
                 process.stdout.write('.');
             }
@@ -223,19 +97,19 @@ function startBoreTunnel(port) {
     });
 }
 
-function stopBore() {
-    if (boreProcess) {
+function stopTunnel() {
+    if (tunnelProcess) {
         try {
-            boreProcess.kill('SIGTERM');
+            tunnelProcess.kill('SIGTERM');
         } catch (e) {
-            console.error('Error killing bore:', e.message);
+            console.error('Error killing tunnel:', e.message);
         }
-        boreProcess = null;
+        tunnelProcess = null;
     }
 }
 
 function stopServer() {
-    stopBore();
+    stopTunnel();
     if (server) {
         try {
             server.close();
@@ -276,21 +150,20 @@ app.get('/health', (req, res) => {
 
 async function start(port = 3000) {
     if (!checkDependencies()) {
-        console.log('First run detected, installing dependencies...');
+        console.log('First run detected, marking as ready...');
         markInstalled();
     }
     
     console.log(`Starting webhook server on port ${port}...`);
     
-    const borePort = await startBoreTunnel(port);
+    const tunnelUrl = await startLocalhostRunTunnel(port);
     
     return new Promise((resolve) => {
         server = app.listen(port, '127.0.0.1', () => {
-            console.log(`Webhook server ready on bore.pub:${borePort}`);
-            console.log(`URL to share: https://bore.pub:${borePort}`);
+            console.log(`Webhook server ready!`);
         });
         
-        resolve({ port: borePort, credentials: null });
+        resolve({ url: tunnelUrl, credentials: null });
     });
 }
 
@@ -308,11 +181,13 @@ process.on('SIGTERM', shutdown);
 
 if (require.main === module) {
     const port = parseInt(process.argv[2]) || 3000;
-    start(port).then(({ port: borePort }) => {
-        console.log(`\n========================================`);
-        console.log(`Server running! Share this URL with remote:`);
-        console.log(`https://bore.pub:${borePort}`);
-        console.log(`========================================\n`);
+    start(port).then(({ url }) => {
+        console.log('');
+        console.log('========================================');
+        console.log('Server running! Share this URL:');
+        console.log(url);
+        console.log('========================================');
+        console.log('');
     }).catch(err => {
         console.error('Failed to start:', err.message);
         process.exit(1);
