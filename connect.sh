@@ -23,7 +23,13 @@ log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 cleanup() {
     log_info "Cleaning up..."
     pkill -f "bore.*${SESSION_ID}" 2>/dev/null || true
-    userdel -r "${TEMP_USER}" 2>/dev/null || true
+    
+    if [ -f /tmp/opentunnel_pass ]; then
+        if [ "$(cat /tmp/opentunnel_pass)" != "existing" ]; then
+            userdel -r "${TEMP_USER}" 2>/dev/null || true
+        fi
+    fi
+    
     systemctl stop opentunnel.timer 2>/dev/null || true
     systemctl disable opentunnel.timer 2>/dev/null || true
     rm -f /etc/systemd/system/opentunnel.service
@@ -35,13 +41,19 @@ cleanup() {
 setup_cleanup_timer() {
     log_info "Setting up auto-cleanup timer for ${EXPIRE_MINUTES} minutes..."
     
+    if [ "$(cat /tmp/opentunnel_pass)" = "existing" ]; then
+        CLEANUP_CMD="pkill -f bore 2>/dev/null"
+    else
+        CLEANUP_CMD="userdel -r ${TEMP_USER} 2>/dev/null; pkill -f bore 2>/dev/null"
+    fi
+    
     cat > /tmp/opentunnel.service << EOF
 [Unit]
 Description=OpenTunnel Cleanup
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c "userdel -r ${TEMP_USER} 2>/dev/null; pkill -f bore 2>/dev/null"
+ExecStart=/bin/bash -c "${CLEANUP_CMD}"
 EOF
 
     cat > /tmp/opentunnel.timer << EOF
@@ -102,19 +114,17 @@ generate_password() {
 }
 
 setup_ssh_user() {
-    TEMP_PASS=$(generate_password)
-    
     log_info "Setting up SSH for user: ${TEMP_USER}"
     
     if id "${TEMP_USER}" &>/dev/null; then
-        log_warn "User ${TEMP_USER} exists, changing password..."
-        echo "${TEMP_USER}:${TEMP_PASS}" | sudo chpasswd
+        log_info "User ${TEMP_USER} exists, using existing password"
+        echo "existing" > /tmp/opentunnel_pass
     else
+        TEMP_PASS=$(generate_password)
         sudo useradd -m -s /bin/bash "${TEMP_USER}"
         echo "${TEMP_USER}:${TEMP_PASS}" | sudo chpasswd
+        echo "$TEMP_PASS" > /tmp/opentunnel_pass
     fi
-    
-    echo "$TEMP_PASS" > /tmp/opentunnel_pass
 }
 
 start_tunnel() {
@@ -155,8 +165,14 @@ print_output() {
     echo -e "              ${GREEN}OPENTUNNEL READY${NC}"
     echo "========================================================"
     echo ""
-    echo "User:     ${TEMP_USER}"
-    echo "Password: ${password}"
+    echo "User: ${TEMP_USER}"
+    
+    if [ "$password" = "existing" ]; then
+        echo "Password: (your existing password)"
+    else
+        echo "Password: ${password}"
+    fi
+    
     echo ""
     echo "Connect with:"
     echo "------------------------------------------------------------"
