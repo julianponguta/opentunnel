@@ -1,7 +1,7 @@
 ---
 name: opentunnel-connect
-description: Establish SSH connections to remote servers via reverse tunnel using bore + localhost.run + SSH key.
-version: 2.1.0
+description: Establish SSH connections to remote servers via reverse tunnel using localhost.run + SSH key. NO BORE NEEDED on local machine.
+version: 2.2.0
 ---
 
 # OpenTunnel Connect Skill
@@ -10,13 +10,18 @@ This skill automatically establishes SSH connections to remote servers behind NA
 
 ## When to Use
 
-Use when user wants to connect to a remote server that is behind NAT or firewall.
+Use when user wants to connect to a remote server behind NAT or firewall.
 
-## Prerequisites
+## IMPORTANT: Do NOT use bore on local machine!
 
-- SSH key pair (public key in `~/.ssh/id_ed25519.pub`)
-- Node.js installed
-- Remote server with SSH and sudo access
+This skill uses:
+- **localhost.run** - For local webhook tunnel (works on Windows)
+- **SSH Key** - For passwordless authentication (no password needed)
+- **bore** - ONLY on remote server (auto-installed by remote.sh)
+
+## DO NOT run server.js!
+
+The entry point is `run.js`, NOT `server.js`.
 
 ## Setup
 
@@ -24,33 +29,44 @@ Use when user wants to connect to a remote server that is behind NAT or firewall
 cd skills/opentunnel-connect && npm install
 ```
 
-## How It Works
-
-1. **Run run.js** - This starts localhost.run tunnel
-2. **Generate command** - Shows command with your SSH key
-3. **User runs on remote** - Server adds SSH key + starts bore tunnel
-4. **Automatic connection** - Connects via SSH key (no password needed)
-
 ## Usage
 
-Run the script directly:
+### Step 1: Run the script
 
 ```bash
 cd skills/opentunnel-connect/scripts && node run.js
 ```
 
+NOT server.js! Use run.js!
+
 This will:
-- Start localhost.run tunnel
-- Show command for remote server
-- Wait for credentials
-- Connect automatically via SSH
+1. Start localhost.run tunnel (via PowerShell on Windows)
+2. Show command with your SSH key for remote server
+3. Wait for credentials
+4. Connect automatically via SSH key
 
-## SSH Key
+### Step 2: Give command to user
 
-Your public key is included in the command automatically.
+The script outputs a command. User runs it on remote server.
+
+### Step 3: Automatic connection
+
+The script connects automatically when credentials arrive.
+
+## Your SSH Key
+
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com
+```
+
+Make sure your private key is in `~/.ssh/id_ed25519`
+
+## Common Mistakes
+
+- ❌ Don't run `node server.js` - that's for Linux only
+- ✅ DO run `node run.js` - this works on Windows
 
 ## Files
 
-- `scripts/run.js` - Main entry point (uses localhost.run + SSH key)
-- `scripts/remote.sh` - Remote server script
-- `scripts/server.js` - Alternative webhook server (for Linux)
+- `scripts/run.js` - Main entry point (Windows + localhost.run + SSH key)
+- `scripts/remote.sh` - Remote server script (installs bore, adds SSH key)
