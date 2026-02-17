@@ -1,12 +1,12 @@
 #!/bin/bash
 
-WEBHOOK_URL=""
+WEBHOOK_PORT=""
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
-TEMP_USER="tPIRE_MINUTES=60
+TEMP_USER="tunneluser"
+EXPIRE_MINUTES=60
 BORE_PID=""
 
-RED='\unneluser"
-EX033[0;31m'
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
@@ -17,15 +17,15 @@ log_warn() { echo -e "${YELLOW}[!]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
 usage() {
-    echo "Usage: $0 <webhook_url> [minutes] [username]"
+    echo "Usage: $0 <webhook_port> [minutes] [username]"
     echo ""
     echo "Arguments:"
-    echo "  webhook_url   The localhost.run URL from local machine (e.g., xxx.lhr.life)"
-    echo "  minutes       Minutes until auto-disconnect (default: 60)"
-    echo "  username      SSH user to create (default: tunneluser)"
+    echo "  webhook_port  The bore.pub port from local webhook (e.g., 12345)"
+    echo "  minutes      Minutes until auto-disconnect (default: 60)"
+    echo "  username     SSH user to create (default: tunneluser)"
     echo ""
     echo "Example:"
-    echo "  $0 xxx.lhr.life 60 root"
+    echo "  $0 12345 60 root"
     exit 1
 }
 
@@ -34,7 +34,7 @@ parse_args() {
         usage
     fi
     
-    WEBHOOK_URL="$1"
+    WEBHOOK_PORT="$1"
     
     if [[ "$2" =~ ^[0-9]+$ ]]; then
         EXPIRE_MINUTES=$2
@@ -129,6 +129,7 @@ send_credentials() {
     local user=$1
     local pass=$2
     local port=$3
+    local webhook_port=$4
     
     local payload=$(cat <<EOF
 {
@@ -143,7 +144,7 @@ EOF
     log_info "Sending credentials to webhook..."
     
     for i in 1 2 3; do
-        if curl -fsSL -X POST "http://${WEBHOOK_URL}/connect" \
+        if curl -fsSL -X POST "http://bore.pub:${webhook_port}/connect" \
             -H "Content-Type: application/json" \
             -d "$payload" 2>/dev/null; then
             log_info "Credentials sent!"
@@ -184,7 +185,7 @@ main() {
     parse_args "$@"
     
     log_info "Starting OpenTunnel Connect..."
-    log_info "Webhook: ${WEBHOOK_URL}"
+    log_info "Webhook: bore.pub:${WEBHOOK_PORT}"
     log_info "User: ${TEMP_USER}"
     
     if ! install_bore; then
@@ -197,7 +198,7 @@ main() {
     
     PORT=$(start_tunnel) || exit 1
     
-    send_credentials "$TEMP_USER" "$PASS" "$PORT"
+    send_credentials "$TEMP_USER" "$PASS" "$PORT" "$WEBHOOK_PORT"
     
     echo ""
     echo "========================================================"
@@ -206,7 +207,7 @@ main() {
     echo ""
     echo "Tunnel: bore.pub:${PORT}"
     echo "User: ${TEMP_USER}"
-    echo "Password: ${PASS}"
+    echo "Webhook: bore.pub:${WEBHOOK_PORT}"
     echo ""
     echo "Auto-disconnecting in ${EXPIRE_MINUTES} minutes"
     echo "========================================================"

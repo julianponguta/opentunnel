@@ -1,48 +1,28 @@
-# OpenTunnel
+# OpenTunnel - AI Agent Setup
 
-One-command SSH tunnel to access remote servers instantly.
+This file contains all the instructions AI agents need to set up and use OpenTunnel Connect.
 
----
+## Overview
 
-## Quick Start (Humans)
+OpenTunnel creates SSH tunnels to remote servers using **bore** for both:
+- Local webhook server
+- Remote SSH tunnel
+
+Both connect through `bore.pub` - no additional services needed.
+
+## Setup (One-Time)
+
+### Step 1: Install ezssh-mcp globally
 
 ```bash
-# Setup (once)
-echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@:-60}"; }' >> ~/.bashrc && source ~/.bashrc
-
-# Use (each time you need to connect)
-ot                  # 60 minutes, creates tunneluser with temp password
-ot 30              # 30 minutes
-ot root            # 60 minutes, uses root's existing password
-ot 30 root        # 30 minutes, root
+npm install -g ezssh-mcp
 ```
 
-## How It Works
+### Step 2: Configure OpenCode MCP
 
-1. Run `ot` on the remote server
-2. Script installs **bore** automatically
-3. Creates a temporary SSH user
-4. Starts tunnel to `bore.pub:PORT`
-5. Connect from your machine: `ssh -p PORT user@bore.pub`
-6. Auto-cleanup after the specified time
-7. Tunnel runs in background - you can close the terminal
+Create or update `~/.config/opencode/opencode.json`:
 
----
-
-## OpenCode Skill
-
-For AI agents to automatically connect to remote servers.
-
-### Setup
-
-```bash
-# Install skill
-npx skills add julianponguta/opentunnel/skills/opentunnel-connect
-
-# Install dependencies
-cd skills/opentunnel-connect && npm install
-
-# Configure ezssh-mcp in ~/.config/opencode/opencode.json
+```json
 {
   "mcp": {
     "ezssh": {
@@ -53,18 +33,114 @@ cd skills/opentunnel-connect && npm install
 }
 ```
 
-### How It Works
+### Step 3: Install opentunnel-connect Skill
 
-1. Start webhook server locally: `node skills/opentunnel-connect/scripts/server.js`
-2. Get a URL like `xxx.lhr.life`
-3. Run remote script with that URL
-4. Webhook receives credentials automatically
-5. AI connects via ezssh-mcp
+```bash
+npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+```
 
----
+### Step 4: Install Dependencies
 
-## For AI Agents
+```bash
+cd skills/opentunnel-connect && npm install
+```
+
+## Usage Flow
+
+When user wants to connect to a remote server:
+
+### Step 1: Start Webhook Server (Your Machine)
+
+```bash
+cd skills/opentunnel-connect/scripts && node server.js
+```
+
+Wait for output like:
+```
+========================================
+Server running! Share this URL:
+bore.pub:12345
+========================================
+```
+
+Copy the port number (e.g., `12345`).
+
+### Step 2: Provide Command to Remote User
+
+Give this command to the user to run on the remote server:
 
 ```
-Follow the instructions at: https://raw.githubusercontent.com/julianponguta/opentunnel/main/README.md
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- WEBHOOK_PORT MINUTES USER
 ```
+
+Replace:
+- `WEBHOOK_PORT` - The port from Step 1 (e.g., `12345`)
+- `MINUTES` - Session duration (default: 60)
+- `USER` - Username to create (default: tunneluser)
+
+**Example:**
+```
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- 12345 60 root
+```
+
+### Step 3: Wait for Credentials
+
+Poll the status endpoint:
+
+```bash
+curl http://localhost:3000/status
+```
+
+When ready, response will be:
+```json
+{
+  "status": "ready",
+  "credentials": {
+    "user": "root",
+    "password": "otp_abc123...",
+    "host": "bore.pub",
+    "port": 54321
+  }
+}
+```
+
+### Step 4: Connect via SSH
+
+Use ezssh-mcp tool with these credentials:
+
+- **host**: `bore.pub`
+- **port**: [port from credentials]
+- **username**: [user from credentials]
+- **password**: [password from credentials]
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  TU MÁQUINA                                           │
+│                                                         │
+│  node server.js                                        │
+│    └─► bore local 3000 --to bore.pub                  │
+│           └─► bore.pub:12345                          │
+│                                                         │
+│  Webhook listening on /connect                        │
+└─────────────────────────────────────────────────────────┘
+                         │
+                         │ HTTP
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│  SERVIDOR REMOTO                                       │
+│                                                         │
+│  remote.sh                                             │
+│    └─► bore local 22 --to bore.pub                    │
+│           └─► bore.pub:54321                          │
+│    └─► POST http://bore.pub:12345/connect            │
+│           {user, password, host, port}                │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Files
+
+- `scripts/server.js` - Local webhook server
+- `scripts/remote.sh` - Remote server script
+- `scripts/SKILL.md` - Skill definition
