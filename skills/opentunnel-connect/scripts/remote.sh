@@ -18,41 +18,27 @@ log_warn() { echo -e "${YELLOW}[!]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
 usage() {
-    echo "Usage: $0 <webhook_url> [minutes] [username] [ssh_key]"
+    echo "Usage: $0 <username> [--daemon] [ssh_key]"
     echo ""
     echo "Arguments:"
-    echo "  webhook_url  The localhost.run URL from local machine (ignored - for compatibility)"
-    echo "  minutes     Minutes until auto-disconnect (default: 60)"
-    echo "  username    SSH user to create (default: tunneluser)"
-    echo "  ssh_key     SSH public key to add (optional)"
-    echo "  --daemon   Run in background and exit immediately"
+    echo "  username   SSH user (default: tunneluser)"
+    echo "  --daemon  Run in background and exit immediately"
+    echo "  ssh_key   SSH public key to add"
     echo ""
     exit 1
 }
 
 parse_args() {
-    if [ $# -lt 1 ]; then
-        usage
-    fi
-    
-    # First arg is webhook URL (ignored now, kept for compatibility)
-    WEBHOOK_URL="$1"
-    
-    # Parse all arguments
     for arg in "$@"; do
         if [[ "$arg" == "--daemon" ]]; then
             DAEMON_MODE=true
-        elif [[ "$arg" =~ ^[0-9]+$ ]] && [ -z "$EXPIRE_MINUTES" ]; then
-            EXPIRE_MINUTES=$arg
         elif [[ "$arg" =~ ^ssh- ]]; then
             SSH_KEY="$arg"
-        elif [[ "$arg" != "$WEBHOOK_URL" ]] && [[ ! "$arg" =~ ^[0-9]+$ ]] && [ -z "$TEMP_USER" ]; then
+        elif [[ ! "$arg" =~ ^- ]]; then
             TEMP_USER="$arg"
         fi
     done
     
-    # Defaults
-    [ -z "$EXPIRE_MINUTES" ] && EXPIRE_MINUTES=60
     [ -z "$TEMP_USER" ] && TEMP_USER="tunneluser"
 }
 
@@ -62,23 +48,15 @@ setup_user_with_key() {
     
     log_info "Setting up user with SSH key..."
     
-    # Create user if not exists (skip for root)
-    if [ "$user" != "root" ] && ! id "${user}" &>/dev/null; then
-        useradd -m -s /bin/bash "${user}" 2>/dev/null
-    fi
-    
-    # Determine home directory
     if [ "$user" = "root" ]; then
         HOME_DIR="/root"
     else
         HOME_DIR="/home/${user}"
     fi
     
-    # Create .ssh directory
     mkdir -p "${HOME_DIR}/.ssh"
     chmod 700 "${HOME_DIR}/.ssh"
     
-    # Add SSH key (avoid duplicates)
     if ! grep -qF "$key" "${HOME_DIR}/.ssh/authorized_keys" 2>/dev/null; then
         echo "$key" >> "${HOME_DIR}/.ssh/authorized_keys"
     fi
@@ -86,40 +64,6 @@ setup_user_with_key() {
     chown -R "${user}:${user}" "${HOME_DIR}/.ssh"
     
     log_info "SSH key added for user ${user}"
-}
-
-generate_password() {
-    echo "otp_$(openssl rand -hex 6 2>/dev/null || head -c 12 /dev/urandom | xxd -p)"
-}
-
-setup_user() {
-    if [ -n "$SSH_KEY" ]; then
-        setup_user_with_key "$TEMP_USER" "$SSH_KEY"
-        echo "key-based"
-        return 0
-    fi
-    
-    if id "${TEMP_USER}" &>/dev/null; then
-        log_info "User ${TEMP_USER} already exists"
-        if [ -n "$SSH_KEY" ]; then
-            setup_user_with_key "$TEMP_USER" "$SSH_KEY"
-            echo "key-based"
-        else
-            echo "existing"
-        fi
-        return 0
-    fi
-    
-    local PASS=$(generate_password)
-    
-    if useradd -m -s /bin/bash "${TEMP_USER}" 2>/dev/null; then
-        echo "${TEMP_USER}:${PASS}" | chpasswd
-        log_info "Created user ${TEMP_USER}"
-        echo "$PASS"
-    else
-        log_error "Failed to create user"
-        return 1
-    fi
 }
 
 install_bore() {
@@ -149,7 +93,12 @@ install_bore() {
     return 1
 }
 
-wait_for_bore() {
+start_tunnel() {
+    log_info "Starting bore tunnel..."
+    
+    bore local 22 --to bore.pub > /tmp/ot_bore.log 2>&1 &
+    BORE_PID=$!
+    
     for i in $(seq 1 30); do
         if [ -f /tmp/ot_bore.log ]; then
             PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
@@ -162,39 +111,12 @@ wait_for_bore() {
     return 1
 }
 
-start_tunnel() {
-    log_info "Starting bore tunnel..."
-    
-    bore local 22 --to bore.pub > /tmp/ot_bore.log 2>&1 &
-    BORE_PID=$!
-    
-    if ! wait_for_bore; then
-        log_error "Failed to establish tunnel"
-        cat /tmp/ot_bore.log
-        return 1
-    fi
-    
-    PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | sed 's/bore\.pub://')
-    log_info "Tunnel ready on port ${PORT}"
-    echo "$PORT"
-}
-
 cleanup() {
-    log_info "Cleaning up..."
-    
     if [ -n "$BORE_PID" ]; then
         kill $BORE_PID 2>/dev/null || true
     fi
-    
     pkill -f "bore.*${SESSION_ID}" 2>/dev/null || true
-    
-    if [ -f /tmp/ot_pass ]; then
-        if [ "$(cat /tmp/ot_pass)" != "existing" ] && [ "$(cat /tmp/ot_pass)" != "key-based" ]; then
-            userdel -r "${TEMP_USER}" 2>/dev/null || true
-        fi
-    fi
-    
-    rm -f /tmp/ot_pass /tmp/ot_bore.log
+    rm -f /tmp/ot_bore.log
 }
 
 main() {
@@ -213,15 +135,11 @@ main() {
         exit 1
     fi
     
-    PASS=$(setup_user) || exit 1
-    echo "$PASS" > /tmp/ot_pass
+    if [ -n "$SSH_KEY" ]; then
+        setup_user_with_key "$TEMP_USER" "$SSH_KEY"
+    fi
     
     PORT=$(start_tunnel) || exit 1
-    
-    AUTH_TYPE="password"
-    if [ -n "$SSH_KEY" ]; then
-        AUTH_TYPE="key"
-    fi
     
     echo ""
     echo "========================================================"
@@ -230,17 +148,14 @@ main() {
     echo ""
     echo "Tunnel: bore.pub:${PORT}"
     echo "User: ${TEMP_USER}"
-    echo "Auth: ${AUTH_TYPE}"
     echo ""
-    echo "COPY THIS INFO TO YOUR LOCAL MACHINE:"
+    echo "COPY THIS TO YOUR LOCAL MACHINE:"
     echo "  bore.pub:${PORT}"
     echo ""
     echo "Auto-disconnecting in ${EXPIRE_MINUTES} minutes"
     echo "========================================================"
-    echo ""
     
     if [ "$DAEMON_MODE" = true ]; then
-        log_info "Running in daemon mode - exiting and running in background"
         nohup bash -c "sleep $((EXPIRE_MINUTES * 60)); cleanup" > /dev/null 2>&1 &
         exit 0
     fi
