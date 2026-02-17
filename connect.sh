@@ -4,6 +4,10 @@
 # Usage: ot [minutes] [username] [ssh_key]
 # Example: ot 60 root "ssh-ed25519..."
 
+# Debug: show all args FIRST
+echo "[DEBUG] All args: '$*'" >&2
+echo "[DEBUG] Arg count: $#" >&2
+
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
 TEMP_USER="tunneluser"
 EXPIRE_MINUTES=60
@@ -17,9 +21,6 @@ NC='\033[0m'
 log_info() { echo -e "${GREEN}[+]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
-# Debug: show all args
-echo "[DEBUG] Args: $* (count: $#)" >&2
-
 # Parse all args
 for arg in "$@"; do
     if [[ "$arg" == -* ]]; then
@@ -32,8 +33,6 @@ for arg in "$@"; do
         TEMP_USER="$arg"
     fi
 done
-
-echo "[DEBUG] Parsed - minutes: $EXPIRE_MINUTES, user: $TEMP_USER, key: ${SSH_KEY:0:20}..." >&2
 
 # If no SSH key provided, prompt for it
 if [ -z "$SSH_KEY" ]; then
@@ -151,7 +150,6 @@ echo ""
 echo "COPY TO YOUR LOCAL MACHINE:"
 echo "  bore.pub:${PORT}"
 echo ""
-echo "Auto-disconnecting in ${EXPIRE_MINUTES} minutes"
 echo "========================================================"
 
 trap cleanup EXIT INT TERM
