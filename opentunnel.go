@@ -91,7 +91,7 @@ func main() {
 	fmt.Printf("Tunnel: %s\n", tunnelURL)
 	fmt.Println("\nCOPY AND RUN ON REMOTE SERVER:")
 	fmt.Println("========================================")
-	fmt.Printf("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- %s %d %s \"%s\"\n", tunnelURL, minutes, user, sshKey)
+	fmt.Printf("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- %s %d %s --daemon \"%s\"\n", tunnelURL, minutes, user, sshKey)
 	fmt.Println("========================================")
 	fmt.Println("\nWaiting for remote connection...")
 

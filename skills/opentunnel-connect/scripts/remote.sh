@@ -6,6 +6,7 @@ SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
 TEMP_USER="tunneluser"
 EXPIRE_MINUTES=60
 BORE_PID=""
+DAEMON_MODE=false
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -40,7 +41,17 @@ parse_args() {
         EXPIRE_MINUTES=$2
     fi
     
-    if [ -n "$3" ] && [[ ! "$3" =~ ^ssh- ]]; then
+    if [[ "$2" == "--daemon" ]]; then
+        DAEMON_MODE=true
+    fi
+    
+    for arg in "$@"; do
+        if [[ "$arg" == "--daemon" ]]; then
+            DAEMON_MODE=true
+        fi
+    done
+    
+    if [ -n "$3" ] && [[ ! "$3" =~ ^ssh- ]] && [[ "$3" != "--daemon" ]]; then
         TEMP_USER="$3"
     fi
     
@@ -262,6 +273,12 @@ main() {
     echo "Auto-disconnecting in ${EXPIRE_MINUTES} minutes"
     echo "========================================================"
     echo ""
+    
+    if [ "$DAEMON_MODE" = true ]; then
+        log_info "Running in daemon mode - exiting and running in background"
+        nohup bash -c "sleep $((EXPIRE_MINUTES * 60)); cleanup" > /dev/null 2>&1 &
+        exit 0
+    fi
     
     sleep $((EXPIRE_MINUTES * 60))
 }
