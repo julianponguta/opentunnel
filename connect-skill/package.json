@@ -1,0 +1,13 @@
+{
+  "name": "opentunnel-connect",
+  "version": "1.0.0",
+  "description": "Reverse SSH tunnel with webhook for OpenCode",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "child_process": "^1.0.0"
+  }
+}
