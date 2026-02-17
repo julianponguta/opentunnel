@@ -57,19 +57,28 @@ setup_user_with_key() {
     
     log_info "Setting up user with SSH key..."
     
-    # Create user if not exists
-    if ! id "${user}" &>/dev/null; then
+    # Create user if not exists (skip for root)
+    if [ "$user" != "root" ] && ! id "${user}" &>/dev/null; then
         useradd -m -s /bin/bash "${user}" 2>/dev/null
     fi
     
-    # Create .ssh directory
-    mkdir -p "/home/${user}/.ssh"
-    chmod 700 "/home/${user}/.ssh"
+    # Determine home directory
+    if [ "$user" = "root" ]; then
+        HOME_DIR="/root"
+    else
+        HOME_DIR="/home/${user}"
+    fi
     
-    # Add SSH key
-    echo "$key" >> "/home/${user}/.ssh/authorized_keys"
-    chmod 600 "/home/${user}/.ssh/authorized_keys"
-    chown -R "${user}:${user}" "/home/${user}/.ssh"
+    # Create .ssh directory
+    mkdir -p "${HOME_DIR}/.ssh"
+    chmod 700 "${HOME_DIR}/.ssh"
+    
+    # Add SSH key (avoid duplicates)
+    if ! grep -qF "$key" "${HOME_DIR}/.ssh/authorized_keys" 2>/dev/null; then
+        echo "$key" >> "${HOME_DIR}/.ssh/authorized_keys"
+    fi
+    chmod 600 "${HOME_DIR}/.ssh/authorized_keys"
+    chown -R "${user}:${user}" "${HOME_DIR}/.ssh"
     
     log_info "SSH key added for user ${user}"
 }
