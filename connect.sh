@@ -121,7 +121,7 @@ setup_ssh_user() {
 start_tunnel() {
     log_info "Starting bore tunnel..."
     
-    bore local 22 --to bore.pub > /tmp/opentunnel.log 2>&1 &
+    bore local 22 --to bore.pub 2>&1 | tee /tmp/opentunnel.log &
     BORE_PID=$!
     
     sleep 2
@@ -134,7 +134,7 @@ start_tunnel() {
     
     for i in 1 2 3 4 5; do
         sleep 1
-        BORE_URL=$(grep -oP '\d+\.bore\.pub' /tmp/opentunnel.log | head -1)
+        BORE_URL=$(grep -oE '[0-9]+\.bore\.pub' /tmp/opentunnel.log | head -1)
         if [ -n "$BORE_URL" ]; then
             break
         fi
@@ -194,10 +194,7 @@ main() {
     
     log_info "Tunnel is active. Press Ctrl+C to stop (cleanup will run automatically)"
     
-    while true; do
-        sleep 60 &
-        wait $!
-    done
+    wait $BORE_PID 2>/dev/null || true
 }
 
 trap cleanup EXIT
