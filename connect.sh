@@ -22,17 +22,24 @@ log_info() { echo -e "${GREEN}[+]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
 # Parse all args
+echo "[DEBUG] Starting parse..." >&2
 for arg in "$@"; do
+    echo "[DEBUG] Processing: '$arg'" >&2
     if [[ "$arg" == -* ]]; then
+        echo "[DEBUG] Skipping flag: $arg" >&2
         continue
     elif [[ "$arg" =~ ^ssh- ]]; then
+        echo "[DEBUG] Found SSH key: ${arg:0:20}..." >&2
         SSH_KEY="$arg"
     elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+        echo "[DEBUG] Found minutes: $arg" >&2
         EXPIRE_MINUTES="$arg"
     elif [ -n "$arg" ]; then
+        echo "[DEBUG] Found user: $arg" >&2
         TEMP_USER="$arg"
     fi
 done
+echo "[DEBUG] After parse - minutes: $EXPIRE_MINUTES, user: $TEMP_USER, key: '${SSH_KEY:0:10}...'" >&2
 
 # If no SSH key provided, prompt for it
 if [ -z "$SSH_KEY" ]; then
