@@ -87,7 +87,7 @@ setup_user() {
 start_tunnel() {
     echo "[*] Starting localhost.run tunnel..."
     
-    ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:localhost:22 localhost.run 2>&1 | tee /tmp/ot_url &
+    ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:localhost:22 nokey@localhost.run 2>&1 | tee /tmp/ot_url &
     SSH_PROCESS=$!
     
     sleep 5
@@ -100,26 +100,6 @@ start_tunnel() {
         fi
         sleep 1
     done
-    
-    echo "[!] localhost.run failed, trying bore..."
-    pkill -f "localhost.run" 2>/dev/null || true
-    
-    if command -v bore &> /dev/null; then
-        bore local 22 --to bore.pub > /tmp/ot_url 2>&1 &
-        SSH_PROCESS=$!
-        
-        for i in $(seq 1 20); do
-            URL=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_url | head -1)
-            if [ -n "$URL" ]; then
-                echo "$URL" > /tmp/ot_url
-                return 0
-            fi
-            sleep 1
-        done
-    else
-        echo "[!] bore not installed. To use localhost.run, you need an SSH key."
-        echo "[!] Or install bore: curl -fsSL https://getbore.io | bash"
-    fi
     
     return 1
 }
