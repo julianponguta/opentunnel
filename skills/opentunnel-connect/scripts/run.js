@@ -1,9 +1,9 @@
 const { spawn } = require('child_process');
-const fs = require('fs');
 const http = require('http');
 
 const PORT = 3000;
 const SSH_KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com';
+const SSH_KEY_PATH = 'C:/Users/Julian/.ssh/id_ed25519';
 let credentials = null;
 
 console.log('Starting OpenTunnel...');
@@ -18,28 +18,21 @@ let url = '';
 tunnel.stdout.on('data', (data) => {
   const text = data.toString();
   const match = text.match(/([a-zA-Z0-9.-]+)\.lhr\.life/);
-  if (match && !url) {
-    url = match[1] + '.lhr.life';
-  }
+  if (match && !url) url = match[1] + '.lhr.life';
 });
 
 tunnel.stderr.on('data', (data) => {
   const text = data.toString();
   const match = text.match(/([a-zA-Z0-9.-]+)\.lhr\.life/);
-  if (match && !url) {
-    url = match[1] + '.lhr.life';
-  }
+  if (match && !url) url = match[1] + '.lhr.life';
 });
 
 function startServer() {
-  if (!url) {
-    setTimeout(startServer, 1000);
-    return;
-  }
+  if (!url) { setTimeout(startServer, 1000); return; }
 
   console.log('');
   console.log('========================================');
-  console.log('COMMAND FOR REMOTE SERVER:');
+  console.log('RUN THIS COMMAND ON REMOTE SERVER:');
   console.log('');
   console.log(`curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- ${url} 60 tunneluser "${SSH_KEY}"`);
   console.log('');
@@ -65,25 +58,20 @@ function startServer() {
           setTimeout(() => {
             console.log('Connecting via SSH...');
             
-            const sshArgs = [
+            const ssh = spawn('ssh', [
               '-o', 'StrictHostKeyChecking=no',
               '-o', 'IdentitiesOnly=yes',
-              '-i', 'C:/Users/Julian/.ssh/id_ed25519',
+              '-i', SSH_KEY_PATH,
               '-p', String(credentials.port),
               `${credentials.user}@${credentials.host}`,
               'echo "========================================" && echo "CONNECTED TO SERVER!" && hostname && whoami && echo "========================================"'
-            ];
-            
-            console.log('ssh', sshArgs.join(' '));
-            
-            const ssh = spawn('ssh', sshArgs, { stdio: 'inherit' });
+            ], { stdio: 'inherit' });
             
             ssh.on('close', (code) => {
               console.log('SSH session ended');
               process.exit(0);
             });
           }, 1000);
-          
         } catch (e) {
           res.writeHead(500);
           res.end();
@@ -98,10 +86,7 @@ function startServer() {
   server.listen(PORT, '127.0.0.1', () => {
     let countdown = 60;
     const interval = setInterval(() => {
-      if (credentials) {
-        clearInterval(interval);
-        return;
-      }
+      if (credentials) { clearInterval(interval); return; }
       countdown--;
       if (countdown < 0) {
         clearInterval(interval);

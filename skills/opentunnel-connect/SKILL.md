@@ -1,79 +1,67 @@
 ---
 name: opentunnel-connect
-description: Establish SSH connections to remote servers via reverse tunnel.
-version: 1.4.0
+description: Establish SSH connections to remote servers via reverse tunnel using bore + localhost.run + SSH key.
+version: 2.0.0
 ---
 
 # OpenTunnel Connect Skill
 
-This skill automatically establishes SSH connections to remote servers using:
-- **localhost.run** - For local webhook
-- **bore** - For SSH tunnel on remote
+This skill automatically establishes SSH connections to remote servers behind NAT/firewall.
 
 ## When to Use
 
-Use when user wants to connect to a remote server behind NAT/firewall.
+Use when user wants to connect to a remote server that:
+- Is behind NAT or firewall
+- Cannot accept incoming SSH connections
+- Has sudo access
 
-## Workflow
+## How It Works
 
-### Step 1: Start Webhook Server
+1. **Start webhook** - Runs locally using localhost.run
+2. **Generate command** - Creates command with your SSH key
+3. **User runs command** - On remote server
+4. **Server connects back** - Using bore tunnel + adds SSH key
+5. **Automatic login** - Connects via SSH key (no password needed)
 
-Run on your machine:
-```bash
-cd skills/opentunnel-connect/scripts && node server.js
-```
+## Prerequisites
 
-Wait for URL output like: `abc123.lhr.life`
-
-### Step 2: Provide Command to User
-
-Give this command to user to run on remote server:
-```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- WEBHOOK_URL MINUTES USER
-```
-
-Example:
-```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- abc123.lhr.life 60 root
-```
-
-### Step 3: Wait for Credentials
-
-Poll:
-```bash
-curl http://localhost:3000/status
-```
-
-Response:
-```json
-{
-  "status": "ready",
-  "credentials": {
-    "user": "root",
-    "password": "otp_xxx",
-    "host": "bore.pub",
-    "port": 12345
-  }
-}
-```
-
-### Step 4: Connect via ezssh-mcp
-
-```json
-{
-  "host": "bore.pub",
-  "port": 12345,
-  "username": "root",
-  "password": "otp_xxx"
-}
-```
+- SSH key pair (public key in `~/.ssh/id_ed25519.pub`)
+- Node.js installed
+- Remote server with SSH and sudo access
 
 ## Setup
 
 ```bash
-npm install -g ezssh-mcp
-npx skills add julianponguta/opentunnel/skills/opentunnel-connect
 cd skills/opentunnel-connect && npm install
 ```
 
-Configure ezssh in `~/.config/opencode/opencode.json`.
+## Usage
+
+### Step 1: Run the Script
+
+```bash
+cd skills/opentunnel-connect/scripts && node run.js
+```
+
+### Step 2: Give Command to User
+
+The script outputs a command. User runs it on remote server.
+
+### Step 3: Automatic Connection
+
+The skill connects automatically when credentials are received.
+
+## SSH Key
+
+Your public key is included in the command automatically:
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com
+```
+
+Make sure your private key is in `~/.ssh/id_ed25519`
+
+## Troubleshooting
+
+- **Permission denied**: Ensure your SSH key is added to remote server
+- **Connection timeout**: Check firewall settings on remote server
+- **bore not found**: The script auto-installs bore on the remote server
