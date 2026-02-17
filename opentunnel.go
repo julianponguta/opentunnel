@@ -7,28 +7,63 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 func main() {
+	reader := bufio.NewReader(os.Stdin)
+
 	fmt.Println("========================================")
 	fmt.Println("OpenTunnel Connect (Go Edition)")
 	fmt.Println("========================================")
+	fmt.Println()
+
+	defaultSSHKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com"
+
+	fmt.Print("[?] Your SSH key (press Enter to use default): ")
+	sshKey, _ := reader.ReadString('\n')
+	sshKey = strings.TrimSpace(sshKey)
+
+	if sshKey == "" {
+		sshKey = defaultSSHKey
+		fmt.Println("[*] Using default SSH key")
+	} else {
+		fmt.Println("[*] Using provided SSH key")
+	}
+
+	fmt.Print("[?] Remote server user (default: tunneluser): ")
+	user, _ := reader.ReadString('\n')
+	user = strings.TrimSpace(user)
+	if user == "" {
+		user = "tunneluser"
+	}
+
+	fmt.Println("\n[*] Starting localhost.run tunnel...")
 
 	tunnelCmd := exec.Command("ssh", "-R", "80:localhost:3000", "-o", "StrictHostKeyChecking=no", "-o", "ServerAliveInterval=60", "nokey@localhost.run")
 	tunnelCmd.Stdout = os.Stdout
 	tunnelCmd.Stderr = os.Stdout
 
-	fmt.Println("\n[*] Starting localhost.run tunnel...")
 	if err := tunnelCmd.Start(); err != nil {
 		fmt.Printf("[-] Failed to start tunnel: %v\n", err)
 		os.Exit(1)
 	}
 
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("\n[!] Now run this command on your REMOTE SERVER:")
-	fmt.Println("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- <host> <port> <user> <ssh_key>")
-	fmt.Println("\n    Example:")
-	fmt.Println("    curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- 92ca79d79a606a.lhr.life 60 tunneluser \"ssh-ed25519 ...\"")
+	fmt.Println("\n[!] Waiting for tunnel URL from localhost.run output above...")
+	fmt.Print("[?] Enter the tunnel URL (e.g., 03747080ea3e6e.lhr.life): ")
+	tunnelURL, _ := reader.ReadString('\n')
+	tunnelURL = strings.TrimSpace(tunnelURL)
+
+	for tunnelURL == "" {
+		fmt.Print("[?] Please enter the tunnel URL: ")
+		tunnelURL, _ = reader.ReadString('\n')
+		tunnelURL = strings.TrimSpace(tunnelURL)
+	}
+
+	fmt.Println("\n[!] RUN THIS COMMAND ON YOUR REMOTE SERVER:")
+	fmt.Println("========================================")
+	fmt.Printf("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- %s 60 %s \"%s\"\n", tunnelURL, user, sshKey)
+	fmt.Println("========================================")
 	fmt.Println("\n[+] Press ENTER when remote is connected...")
 	reader.ReadString('\n')
 
