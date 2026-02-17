@@ -5,24 +5,20 @@ SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
 TEMP_USER="tunneluser"
 EXPIRE_MINUTES=60
 BORE_PID=""
-DAEMON_MODE=false
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
 NC='\033[0m'
 
 log_info() { echo -e "${GREEN}[+]${NC} $1" >&2; }
-log_warn() { echo -e "${YELLOW}[!]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
 usage() {
-    echo "Usage: $0 <username> [--daemon] [ssh_key]"
+    echo "Usage: $0 <username> [ssh_key]"
     echo ""
     echo "Arguments:"
     echo "  username   SSH user (default: tunneluser)"
-    echo "  --daemon  Run in background and exit immediately"
     echo "  ssh_key   SSH public key to add"
     echo ""
     exit 1
@@ -30,9 +26,7 @@ usage() {
 
 parse_args() {
     for arg in "$@"; do
-        if [[ "$arg" == "--daemon" ]]; then
-            DAEMON_MODE=true
-        elif [[ "$arg" =~ ^ssh- ]]; then
+        if [[ "$arg" =~ ^ssh- ]]; then
             SSH_KEY="$arg"
         elif [[ ! "$arg" =~ ^- ]]; then
             TEMP_USER="$arg"
@@ -160,26 +154,11 @@ main() {
     echo "COPY THIS TO YOUR LOCAL MACHINE:"
     echo "  bore.pub:${PORT}"
     echo ""
-    echo "Auto-disconnecting in ${EXPIRE_MINUTES} minutes"
     echo "========================================================"
     
-    # Wait for bore to output port before exiting
-    sleep 3
-    if [ -f /tmp/ot_bore.log ]; then
-        FINAL_PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
-        if [ -n "$FINAL_PORT" ]; then
-            echo ""
-            echo "FINAL TUNNEL: bore.pub:${FINAL_PORT}"
-        fi
-    fi
-    
-    if [ "$DAEMON_MODE" = true ]; then
-        nohup bash -c "sleep $((EXPIRE_MINUTES * 60)); cleanup" > /dev/null 2>&1 &
-        exit 0
-    fi
-    
+    # Keep running in background
     sleep $((EXPIRE_MINUTES * 60))
-}
+    cleanup
 
 trap cleanup EXIT INT TERM
 

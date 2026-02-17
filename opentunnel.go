@@ -70,7 +70,7 @@ func main() {
 	fmt.Println("\n========================================")
 	fmt.Println("RUN THIS COMMAND ON REMOTE SERVER:")
 	fmt.Println("========================================")
-	fmt.Printf("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- %s --daemon \"%s\"\n", user, sshKey)
+	fmt.Printf("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh | sudo bash -s -- %s \"%s\"\n", user, sshKey)
 	fmt.Println("========================================")
 	fmt.Println("\n[OK] After running, the remote will give you:")
 	fmt.Println("    bore.pub:PORT")
