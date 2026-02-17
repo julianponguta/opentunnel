@@ -25,6 +25,7 @@ ot 30 root        # 30 minutes, root
 4. Starts tunnel to `bore.pub:PORT`
 5. Connect from your machine: `ssh -p PORT user@bore.pub`
 6. Auto-cleanup after the specified time
+7. Tunnel runs in background - you can close the terminal
 
 ---
 

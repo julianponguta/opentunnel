@@ -219,9 +219,14 @@ main() {
     
     print_info
     
-    echo "[*] Tunnel active. Will auto-cleanup in ${EXPIRE_MINUTES} minutes"
+    echo "[*] Tunnel active in background. Will auto-cleanup in ${EXPIRE_MINUTES} minutes"
     
-    wait
+    # Keep running in background
+    nohup bash -c "wait; sleep $((EXPIRE_MINUTES * 60))" > /dev/null 2>&1 &
+    
+    disown
+    
+    exit 0
 }
 
 trap cleanup EXIT INT TERM
