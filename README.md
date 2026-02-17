@@ -30,4 +30,8 @@ The AI agent cannot connect automatically because it needs the user to run a com
 
 ## For AI Agents
 
+Copy and paste this to your agent:
+
+```
 Install the opentunnel-connect skill and configure ezssh-mcp by following: https://raw.githubusercontent.com/julianponguta/opentunnel/main/AGENT_SETUP.md
+```
