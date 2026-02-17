@@ -99,15 +99,21 @@ start_tunnel() {
     bore local 22 --to bore.pub > /tmp/ot_bore.log 2>&1 &
     BORE_PID=$!
     
-    for i in $(seq 1 30); do
-        if [ -f /tmp/ot_bore.log ]; then
-            PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
-            if [ -n "$PORT" ]; then
-                return 0
-            fi
+    log_info "Waiting for bore to start..."
+    sleep 3
+    
+    if [ -f /tmp/ot_bore.log ]; then
+        log_info "bore log:"
+        cat /tmp/ot_bore.log >&2
+        PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
+        if [ -n "$PORT" ]; then
+            log_info "Tunnel ready on port ${PORT}"
+            echo "$PORT"
+            return 0
         fi
-        sleep 1
-    done
+    fi
+    
+    log_error "Failed to get bore port"
     return 1
 }
 
