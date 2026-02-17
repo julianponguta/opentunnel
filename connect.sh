@@ -22,8 +22,16 @@ log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
 cleanup() {
     log_info "Cleaning up..."
-    pkill -f "bore.*${TEMP_USER}" 2>/dev/null || true
-    userdel -r "${TEMP_USER}" 2>/dev/null || true
+    pkill -f "bore.*${SESSION_ID}" 2>/dev/null || true
+    
+    if [ "${TEMP_USER}" != "root" ]; then
+        userdel -r "${TEMP_USER}" 2>/dev/null || true
+    else
+        KEY_PATH="/tmp/ot_key_${SESSION_ID}"
+        sed -i "/opentunnel-${SESSION_ID}/d" /root/.ssh/authorized_keys 2>/dev/null || true
+        rm -f "${KEY_PATH}" "${KEY_PATH}.pub" 2>/dev/null || true
+    fi
+    
     systemctl stop opentunnel.timer 2>/dev/null || true
     systemctl disable opentunnel.timer 2>/dev/null || true
     rm -f /etc/systemd/system/opentunnel.service
@@ -35,13 +43,19 @@ cleanup() {
 setup_cleanup_timer() {
     log_info "Setting up auto-cleanup timer for ${EXPIRE_MINUTES} minutes..."
     
+    if [ "${TEMP_USER}" = "root" ]; then
+        CLEANUP_CMD="pkill -f bore 2>/dev/null; sed -i '/opentunnel-${SESSION_ID}/d' /root/.ssh/authorized_keys 2>/dev/null; rm -f /tmp/ot_key_${SESSION_ID}*"
+    else
+        CLEANUP_CMD="userdel -r ${TEMP_USER} 2>/dev/null; pkill -f bore 2>/dev/null"
+    fi
+    
     cat > /tmp/opentunnel.service << EOF
 [Unit]
 Description=OpenTunnel Cleanup
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c "userdel -r ${TEMP_USER} 2>/dev/null; pkill -f bore 2>/dev/null"
+ExecStart=/bin/bash -c "${CLEANUP_CMD}"
 EOF
 
     cat > /tmp/opentunnel.timer << EOF
@@ -103,21 +117,30 @@ generate_password() {
 
 setup_ssh_user() {
     TEMP_PASS=$(generate_password)
+    KEY_PATH="/tmp/ot_key_${SESSION_ID}"
     
     log_info "Setting up SSH for user: ${TEMP_USER}"
     
     if [ "${TEMP_USER}" = "root" ]; then
-        echo "root:${TEMP_PASS}" | sudo chpasswd
+        ssh-keygen -t ed25519 -f "${KEY_PATH}" -N "" -C "opentunnel-${SESSION_ID}" 2>/dev/null
+        mkdir -p /root/.ssh
+        cat "${KEY_PATH}.pub" >> /root/.ssh/authorized_keys
+        chmod 700 /root/.ssh
+        chmod 600 /root/.ssh/authorized_keys
+        log_info "Root: added SSH key (password unchanged)"
     else
         if id "${TEMP_USER}" &>/dev/null; then
-            log_warn "User ${TEMP_USER} exists, removing..."
-            sudo userdel -r "${TEMP_USER}" 2>/dev/null || true
+            log_warn "User ${TEMP_USER} exists, changing password..."
+            echo "${TEMP_USER}:${TEMP_PASS}" | sudo chpasswd
+        else
+            sudo useradd -m -s /bin/bash "${TEMP_USER}"
+            echo "${TEMP_USER}:${TEMP_PASS}" | sudo chpasswd
+            mkdir -p "/home/${TEMP_USER}/.ssh"
+            chmod 700 "/home/${TEMP_USER}/.ssh"
+            chown "${TEMP_USER}:${TEMP_USER}" "/home/${TEMP_USER}/.ssh"
         fi
-        sudo useradd -m -s /bin/bash "${TEMP_USER}" 2>/dev/null || true
-        echo "${TEMP_USER}:${TEMP_PASS}" | sudo chpasswd
     fi
     
-    log_info "User ${TEMP_USER} configured with password"
     echo "$TEMP_PASS" > /tmp/opentunnel_pass
 }
 
@@ -153,6 +176,7 @@ start_tunnel() {
 print_output() {
     local bore_url="$1"
     local password=$(cat /tmp/opentunnel_pass)
+    local key_path="/tmp/ot_key_${SESSION_ID}"
     
     echo ""
     echo "========================================================"
@@ -160,7 +184,17 @@ print_output() {
     echo "========================================================"
     echo ""
     echo "User:     ${TEMP_USER}"
-    echo "Password: ${password}"
+    
+    if [ "${TEMP_USER}" = "root" ]; then
+        echo ""
+        echo "SSH Key (save to ~/.ssh/id_opentunnel):"
+        echo "------------------------------------------------------------"
+        cat "${key_path}"
+        echo "------------------------------------------------------------"
+    else
+        echo "Password: ${password}"
+    fi
+    
     echo ""
     echo "Connect with:"
     echo "------------------------------------------------------------"
