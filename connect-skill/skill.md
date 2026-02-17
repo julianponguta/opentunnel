@@ -47,26 +47,20 @@ The skill will create a flag file at `~/.opentunnel-installed` after first run t
 The skill should:
 1. Check for `~/.opentunnel-installed` flag
 2. If not present, install dependencies
-3. Run `server.js` with Node.js
+3. Run `scripts/server.js` with Node.js
 4. Wait for bore tunnel to establish
 5. Extract the bore URL from output
-
-Example:
-```javascript
-const { spawn } = require('child_process');
-const bore = spawn('bore', ['local', '3000', '--to', 'bore.pub']);
-```
 
 ## Command Format
 
 Provide this command to user:
 ```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect-skill/remote.sh" | sudo bash -s -- WEBHOOK_URL MINUTES USER
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect-skill/scripts/remote.sh" | sudo bash -s -- WEBHOOK_URL MINUTES USER
 ```
 
 Example:
 ```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect-skill/remote.sh" | sudo bash -s -- bore.pub:12345 30 root
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect-skill/scripts/remote.sh" | sudo bash -s -- bore.pub:12345 30 root
 ```
 
 ## Receiving Credentials
