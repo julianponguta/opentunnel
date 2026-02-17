@@ -29,55 +29,7 @@ curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/conn
 
 ## For AI Agents (OpenCode, Claude, Cursor)
 
-### Setup Instructions
-
-When user wants to connect to a remote server via SSH, follow these steps:
-
-#### Step 1: Install ezssh-mcp
-
-Run this command to install ezssh-mcp globally:
-```bash
-npm install -g ezssh-mcp
-```
-
-#### Step 2: Configure OpenCode
-
-Add this to `~/.config/opencode/opencode.json`:
-
-```json
-{
-  "mcp": {
-    "ezssh": {
-      "command": "npx",
-      "args": ["ezssh-mcp"]
-    }
-  }
-}
-```
-
-Or run:
-```bash
-# Edit ~/.config/opencode/opencode.json and add the mcp section
-```
-
-#### Step 3: Install the opentunnel-connect Skill
-
-```bash
-npx skills add julianponguta/opentunnel/skills/opentunnel-connect
-
-# Then install dependencies
-cd skills/opentunnel-connect && npm install
-```
-
-#### Step 4: Use the Skill
-
-When user asks to connect to a remote server:
-
-1. Start the webhook server: `node skills/opentunnel-connect/scripts/server.js`
-2. Get the bore URL from output
-3. Provide the command to user
-4. Wait for credentials
-5. Connect using ezssh_ssh_execute
+Install the opentunnel-connect skill and configure ezssh-mcp by following: https://raw.githubusercontent.com/julianponguta/opentunnel/main/AGENT_SETUP.md
 
 ---
 
