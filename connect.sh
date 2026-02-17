@@ -17,13 +17,15 @@ NC='\033[0m'
 log_info() { echo -e "${GREEN}[+]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
-# Parse arguments - order: minutes, username, ssh_key
+# Parse all args
 for arg in "$@"; do
-    if [[ "$arg" =~ ^ssh- ]]; then
+    if [[ "$arg" == -* ]]; then
+        continue
+    elif [[ "$arg" =~ ^ssh- ]]; then
         SSH_KEY="$arg"
     elif [[ "$arg" =~ ^[0-9]+$ ]]; then
         EXPIRE_MINUTES="$arg"
-    elif [ -n "$arg" ] && [ "$arg" != "$SSH_KEY" ]; then
+    elif [ -n "$arg" ]; then
         TEMP_USER="$arg"
     fi
 done
