@@ -38,16 +38,18 @@ for arg in "$@"; do
     fi
 done
 
-# If root and no SSH key provided, create temp user with password
-if [ "$TEMP_USER" = "root" ] && [ -z "$SSH_KEY" ]; then
-    if [ -f "/root/.ssh/authorized_keys" ] && [ -s "/root/.ssh/authorized_keys" ]; then
-        log_info "Using existing SSH key for root"
+# For root: show how to use existing password
+# For other users: create temp password if no SSH key
+if [ -z "$SSH_KEY" ]; then
+    if [ "$TEMP_USER" = "root" ]; then
+        log_info "No SSH key provided - use existing root password"
     else
-        # Create temp password for root
+        # Create temp password for non-root user
         TEMP_PASS=$(openssl rand -base64 12 2>/dev/null | tr -dc 'a-zA-Z0-9' | head -c 16)
-        echo "root:$TEMP_PASS" | chpasswd
-        log_info "Created temporary password for root user"
+        useradd -m -s /bin/bash "$TEMP_USER" 2>/dev/null || true
+        echo "$TEMP_USER:$TEMP_PASS" | chpasswd
         SSH_KEY="TEMP_PASSWORD:$TEMP_PASS"
+        log_info "Created temporary user ${TEMP_USER} with password"
     fi
 fi
 
