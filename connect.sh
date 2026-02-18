@@ -38,14 +38,16 @@ for arg in "$@"; do
     fi
 done
 
-# If root and no SSH key provided, try to use existing or error
+# If root and no SSH key provided, create temp user with password
 if [ "$TEMP_USER" = "root" ] && [ -z "$SSH_KEY" ]; then
     if [ -f "/root/.ssh/authorized_keys" ] && [ -s "/root/.ssh/authorized_keys" ]; then
         log_info "Using existing SSH key for root"
     else
-        log_error "SSH key required for root user"
-        log_error "Usage: ot 60 root \"ssh-ed25519...\""
-        exit 1
+        # Create temp password for root
+        TEMP_PASS=$(openssl rand -base64 12 2>/dev/null | tr -dc 'a-zA-Z0-9' | head -c 16)
+        echo "root:$TEMP_PASS" | chpasswd
+        log_info "Created temporary password for root user"
+        SSH_KEY="TEMP_PASSWORD:$TEMP_PASS"
     fi
 fi
 
@@ -154,6 +156,10 @@ echo "========================================================"
 echo ""
 echo "Tunnel: bore.pub:${PORT}"
 echo "User: ${TEMP_USER}"
+if [[ "$SSH_KEY" =~ ^TEMP_PASSWORD: ]]; then
+    PASS="${SSH_KEY#TEMP_PASSWORD:}"
+    echo "Password: ${PASS}"
+fi
 echo ""
 echo "COPY TO YOUR LOCAL MACHINE:"
 echo "  bore.pub:${PORT}"
