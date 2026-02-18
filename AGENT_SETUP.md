@@ -4,67 +4,64 @@ Connect AI agents to remote servers behind NAT/firewall.
 
 ---
 
-## Install
+## Installation
 
-### OpenCode (local)
-```bash
-npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+### Option A: Let an LLM do it
+
+Paste this into any LLM agent (Claude Code, OpenCode, Cursor, etc.):
+
+```
+Install the opentunnel-connect skill by running: npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+Then configure ezssh MCP in ~/.config/opencode/opencode.json with: { "mcp": { "ezssh": { "command": ["npx", "-y", "ezssh-mcp"], "enabled": true, "type": "local" } } }
 ```
 
-### Global (any agent)
-```bash
-npx skills add julianponguta/opentunnel/skills/opentunnel-connect --global
-```
+### Option B: Manual setup
 
-### Manual
-Download skill to `~/.config/opencode/skills/opentunnel-connect/`
+1. **Install the skill:**
+   ```bash
+   npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+   ```
+
+2. **Configure ezssh MCP** in `~/.config/opencode/opencode.json`:
+   ```json
+   {
+     "mcp": {
+       "ezssh": {
+         "command": ["npx", "-y", "ezssh-mcp"],
+         "enabled": true,
+         "type": "local"
+       }
+     }
+   }
+   ```
 
 ---
 
-## Prerequisites
+## For LLM Agents
 
-**Required MCP:** ezssh for SSH connections
+When user requests remote server access, follow these steps:
 
-Add to `~/.config/opencode/opencode.json`:
-```json
-{
-  "mcp": {
-    "ezssh": {
-      "command": ["npx", "-y", "ezssh-mcp"],
-      "enabled": true,
-      "type": "local"
-    }
-  }
-}
-```
-
----
-
-## Agent Workflow
-
-When user requests remote server access:
-
-### 1. Ask
+### Step 1: Ask
 ```
 - Username? (default: tunneluser, or root)
 - Duration? (default: 60 min)
 ```
 
-### 2. Execute Binary
+### Step 2: Execute Binary
 ```powershell
 & "$env:USERPROFILE\.config\opencode\skills\opentunnel-connect\opentunnel.exe" --user USERNAME --minutes MINUTES
 ```
 
-### 3. Give Command to User
+### Step 3: Give Command to User
 Binary outputs a curl command. User runs it on **remote server**:
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- 60 root "ssh-ed25519..."
 ```
 
-### 4. Receive Tunnel Info
+### Step 4: Receive Tunnel Info
 User provides: `bore.pub:PORT`
 
-### 5. Connect
+### Step 5: Connect
 ```javascript
 ezssh_ssh_execute({
   command: "hostname && uptime",
@@ -79,7 +76,7 @@ ezssh_ssh_execute({
 
 ## Output Format
 
-The binary outputs credentials in this format:
+The binary outputs credentials:
 ```
 --- CREDENTIALS ---
 HOST_PORT=bore.pub:12345

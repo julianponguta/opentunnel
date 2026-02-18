@@ -8,15 +8,35 @@ Connect to remote servers behind NAT/firewall using reverse SSH tunnels.
 
 Let AI agents control remote servers through SSH tunnels.
 
-```bash
-# OpenCode
-npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+**Option A: Let an LLM do it**
 
-# Global (any agent)
-npx skills add julianponguta/opentunnel/skills/opentunnel-connect --global
+Paste this into any LLM agent (Claude Code, OpenCode, Cursor, etc.):
+
+```
+Install the opentunnel-connect skill by running: npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+Then configure ezssh MCP in ~/.config/opencode/opencode.json with: { "mcp": { "ezssh": { "command": ["npx", "-y", "ezssh-mcp"], "enabled": true, "type": "local" } } }
 ```
 
-See [AGENT_SETUP.md](AGENT_SETUP.md) for full setup.
+**Option B: Manual setup**
+
+```bash
+npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+```
+
+Add ezssh MCP to `~/.config/opencode/opencode.json`:
+```json
+{
+  "mcp": {
+    "ezssh": {
+      "command": ["npx", "-y", "ezssh-mcp"],
+      "enabled": true,
+      "type": "local"
+    }
+  }
+}
+```
+
+See [AGENT_SETUP.md](AGENT_SETUP.md) for agent workflow.
 
 ---
 
