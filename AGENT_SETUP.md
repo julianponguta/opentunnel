@@ -1,35 +1,26 @@
 # OpenTunnel Connect - Agent Setup
 
-This file contains instructions for AI agents to connect to remote servers behind NAT.
+For AI agents to connect to remote servers behind NAT.
 
-## Overview
+## Quick Setup
 
-OpenTunnel uses **bore** to create reverse SSH tunnels from remote servers.
+### Step 1: Configure ezssh MCP
 
-## Setup
-
-### Step 1: Install ezssh-mcp
-
-```bash
-npm install -g ezssh-mcp
-```
-
-### Step 2: Configure OpenCode MCP
-
-Create or update `~/.config/opencode/opencode.json`:
+Add to `~/.config/opencode/opencode.json`:
 
 ```json
 {
   "mcp": {
     "ezssh": {
-      "command": "npx",
-      "args": ["ezssh-mcp"]
+      "command": ["npx", "-y", "ezssh-mcp"],
+      "enabled": true,
+      "type": "local"
     }
   }
 }
 ```
 
-### Step 3: Install opentunnel-connect Skill
+### Step 2: Install Skill
 
 ```bash
 npx skills add julianponguta/opentunnel/skills/opentunnel-connect
@@ -37,7 +28,7 @@ npx skills add julianponguta/opentunnel/skills/opentunnel-connect
 
 ## Usage
 
-When user wants to connect to a remote server behind NAT:
+When user says "connect to my remote server":
 
 ### Step 1: Ask Options
 
@@ -45,7 +36,7 @@ Ask user:
 - Username? (default: tunneluser)
 - Minutes? (default: 60)
 
-### Step 2: Execute Binary
+### Step 2: Run Binary
 
 ```powershell
 powershell.exe -Command "& 'C:\Users\Julian\.config\opencode\skills\opentunnel-connect\opentunnel.exe' --user USERNAME --minutes MINUTES"
@@ -53,7 +44,7 @@ powershell.exe -Command "& 'C:\Users\Julian\.config\opencode\skills\opentunnel-c
 
 ### Step 3: User Runs Command
 
-The binary outputs a curl command. User runs it on remote server.
+The binary outputs a curl command. Give it to the user to run on remote server.
 
 Example:
 ```bash
@@ -85,8 +76,14 @@ USER=root
 --- END CREDENTIALS ---
 ```
 
+## Common Commands
+
+- `ot` - 60 min, tunneluser
+- `ot root` - 60 min, root (uses existing SSH key or password)
+- `ot 30` - 30 min, tunneluser
+
 ## Files
 
-- `opentunnel.exe` - Windows binary for local machine
-- `connect.sh` - Script to run on remote server
+- `opentunnel.exe` - Windows binary
+- `connect.sh` - Script for remote server
 - `skills/opentunnel-connect/SKILL.md` - Skill definition
