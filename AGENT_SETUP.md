@@ -1,13 +1,31 @@
-# OpenTunnel Connect - Agent Setup
+# OpenTunnel Connect
 
-For AI agents to connect to remote servers behind NAT.
+Connect AI agents to remote servers behind NAT/firewall.
 
-## Quick Setup
+---
 
-### Step 1: Configure ezssh MCP
+## Install
+
+### OpenCode (local)
+```bash
+npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+```
+
+### Global (any agent)
+```bash
+npx skills add julianponguta/opentunnel/skills/opentunnel-connect --global
+```
+
+### Manual
+Download skill to `~/.config/opencode/skills/opentunnel-connect/`
+
+---
+
+## Prerequisites
+
+**Required MCP:** ezssh for SSH connections
 
 Add to `~/.config/opencode/opencode.json`:
-
 ```json
 {
   "mcp": {
@@ -20,43 +38,33 @@ Add to `~/.config/opencode/opencode.json`:
 }
 ```
 
-### Step 2: Install Skill
+---
 
-```bash
-npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+## Agent Workflow
+
+When user requests remote server access:
+
+### 1. Ask
+```
+- Username? (default: tunneluser, or root)
+- Duration? (default: 60 min)
 ```
 
-## Usage
-
-When user says "connect to my remote server":
-
-### Step 1: Ask Options
-
-Ask user:
-- Username? (default: tunneluser)
-- Minutes? (default: 60)
-
-### Step 2: Run Binary
-
+### 2. Execute Binary
 ```powershell
-powershell.exe -Command "& 'C:\Users\Julian\.config\opencode\skills\opentunnel-connect\opentunnel.exe' --user USERNAME --minutes MINUTES"
+& "$env:USERPROFILE\.config\opencode\skills\opentunnel-connect\opentunnel.exe" --user USERNAME --minutes MINUTES
 ```
 
-### Step 3: User Runs Command
-
-The binary outputs a curl command. Give it to the user to run on remote server.
-
-Example:
+### 3. Give Command to User
+Binary outputs a curl command. User runs it on **remote server**:
 ```bash
 curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- 60 root "ssh-ed25519..."
 ```
 
-### Step 4: Get Tunnel Info
-
+### 4. Receive Tunnel Info
 User provides: `bore.pub:PORT`
 
-### Step 5: Connect with ezssh
-
+### 5. Connect
 ```javascript
 ezssh_ssh_execute({
   command: "hostname && uptime",
@@ -67,8 +75,11 @@ ezssh_ssh_execute({
 })
 ```
 
-## Credentials Format
+---
 
+## Output Format
+
+The binary outputs credentials in this format:
 ```
 --- CREDENTIALS ---
 HOST_PORT=bore.pub:12345
@@ -76,14 +87,18 @@ USER=root
 --- END CREDENTIALS ---
 ```
 
-## Common Commands
+Parse this to extract connection info.
 
-- `ot` - 60 min, tunneluser
-- `ot root` - 60 min, root (uses existing SSH key or password)
-- `ot 30` - 30 min, tunneluser
+---
 
-## Files
+## Quick Commands (for users)
 
-- `opentunnel.exe` - Windows binary
-- `connect.sh` - Script for remote server
-- `skills/opentunnel-connect/SKILL.md` - Skill definition
+Users can install `ot` function on their servers:
+```bash
+echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@}"; }' >> ~/.bashrc && source ~/.bashrc
+```
+
+Then run:
+- `ot` → 60 min, tunneluser
+- `ot root` → 60 min, root
+- `ot 30 root` → 30 min, root

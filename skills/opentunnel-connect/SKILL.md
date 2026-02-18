@@ -1,72 +1,62 @@
 ---
 name: opentunnel-connect
-description: Establish SSH connections to remote servers via reverse tunnel using localhost.run + SSH key. NO BORE NEEDED on local machine.
-version: 2.2.0
+description: Connect to remote servers behind NAT using reverse SSH tunnel with bore.
+version: 4.0.0
 ---
 
 # OpenTunnel Connect Skill
 
-This skill automatically establishes SSH connections to remote servers behind NAT/firewall.
+Connect to remote servers behind NAT using reverse SSH tunnel.
 
-## When to Use
+## Flow
 
-Use when user wants to connect to a remote server behind NAT or firewall.
+### Step 1: Ask Options
 
-## IMPORTANT: Do NOT use bore on local machine!
+Ask user:
+- Username? (default: tunneluser)
+- Minutes? (default: 60)
 
-This skill uses:
-- **localhost.run** - For local webhook tunnel (works on Windows)
-- **SSH Key** - For passwordless authentication (no password needed)
-- **bore** - ONLY on remote server (auto-installed by remote.sh)
+### Step 2: Execute Binary
 
-## DO NOT run server.js!
+```powershell
+powershell.exe -Command "& 'C:\Users\Julian\.config\opencode\skills\opentunnel-connect\opentunnel.exe' --user USERNAME"
+```
 
-The entry point is `run.js`, NOT `server.js`.
+The binary will:
+1. Read/create SSH key from ~/.ssh/
+2. Output curl command for remote server
+3. Wait for user to input tunnel info
 
-## Setup
+### Step 3: User Runs Command
 
+Give curl command to user to run on **remote server**.
+
+Example:
 ```bash
-cd skills/opentunnel-connect && npm install
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- 60 root "ssh-ed25519..."
 ```
 
-## Usage
+### Step 4: Get Tunnel Info
 
-### Step 1: Run the script
+User must provide: `bore.pub:PORT`
 
+### Step 5: Connect with ezssh
+
+```javascript
+ezssh_ssh_execute({
+  command: "hostname && uptime",
+  hosts: ["bore.pub"],
+  port: PORT,
+  username: "USERNAME",
+  privateKeyPath: "C:/Users/Julian/.ssh/id_ed25519"
+})
+```
+
+## Quick Install (for users)
+
+Users can install on their servers:
 ```bash
-cd skills/opentunnel-connect/scripts && node run.js
+echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@:-60}"; }' >> ~/.bashrc && source ~/.bashrc
 ```
 
-NOT server.js! Use run.js!
-
-This will:
-1. Start localhost.run tunnel (via PowerShell on Windows)
-2. Show command with your SSH key for remote server
-3. Wait for credentials
-4. Connect automatically via SSH key
-
-### Step 2: Give command to user
-
-The script outputs a command. User runs it on remote server.
-
-### Step 3: Automatic connection
-
-The script connects automatically when credentials arrive.
-
-## Your SSH Key
-
-```
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com
-```
-
-Make sure your private key is in `~/.ssh/id_ed25519`
-
-## Common Mistakes
-
-- ❌ Don't run `node server.js` - that's for Linux only
-- ✅ DO run `node run.js` - this works on Windows
-
-## Files
-
-- `scripts/run.js` - Main entry point (Windows + localhost.run + SSH key)
-- `scripts/remote.sh` - Remote server script (installs bore, adds SSH key)
+Then just run: `ot 60 root`

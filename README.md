@@ -4,68 +4,104 @@ Connect to remote servers behind NAT/firewall using reverse SSH tunnels.
 
 ---
 
-# OpenCode / AI Agents
+## OpenCode / AI Agents
 
+Let AI agents control remote servers through SSH tunnels.
+
+```bash
+# OpenCode
+npx skills add julianponguta/opentunnel/skills/opentunnel-connect
+
+# Global (any agent)
+npx skills add julianponguta/opentunnel/skills/opentunnel-connect --global
 ```
-Install the opentunnel-connect skill and use it by following: https://raw.githubusercontent.com/julianponguta/opentunnel/main/AGENT_SETUP.md
-```
+
+See [AGENT_SETUP.md](AGENT_SETUP.md) for full setup.
 
 ---
 
-# Quick Start
+## Quick Start
 
-## Install
+### Install
 
 ```bash
 echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@}"; }' >> ~/.bashrc && source ~/.bashrc
 ```
 
-## Run
+---
 
+## Two Ways to Connect
+
+### Option A: Password (Simplest)
+
+Run on the remote server:
 ```bash
-ot              # 60 min, tunneluser
-ot root         # 60 min, root
+ot                    # creates tunneluser with temp password
 ```
 
-## Connect
-
-The server shows:
+Server outputs:
 ```
 Tunnel: bore.pub:12345
+User: tunneluser
+Password: abc123xyz789
 ```
 
-Connect:
+Connect from your machine:
 ```bash
-ssh -i ~/.ssh/id_ed25519 tunneluser@bore.pub -p 12345
+ssh tunneluser@bore.pub -p 12345
+# Enter password shown above
 ```
 
 ---
 
-# Commands
+### Option B: SSH Key (Recommended)
 
-```bash
-ot              # 60 min, tunneluser
-ot root         # 60 min, root
-ot 30           # 30 min, tunneluser
-ot 30 root      # 30 min, root
-```
+1. Get your public key (on your local machine):
+   ```bash
+   cat ~/.ssh/id_ed25519.pub
+   # or
+   cat ~/.ssh/id_rsa.pub
+   ```
 
-With SSH key:
-```bash
-ot 60 root "ssh-ed25519 AAAA..."
-```
+2. Run on the remote server with your key:
+   ```bash
+   ot root "ssh-ed25519 AAAA... your@email.com"
+   ```
+
+3. Server outputs:
+   ```
+   Tunnel: bore.pub:12345
+   User: root
+   ```
+
+4. Connect from your machine:
+   ```bash
+   ssh -i ~/.ssh/id_ed25519 root@bore.pub -p 12345
+   ```
 
 ---
 
-# How it works
+## Commands
 
-1. **Server runs**: `bore local 22 --to bore.pub`
-2. **Server shows**: `bore.pub:PORT`
-3. **You connect**: `ssh user@bore.pub -p PORT`
+| Command | Duration | User | Auth |
+|---------|----------|------|------|
+| `ot` | 60 min | tunneluser | temp password |
+| `ot root` | 60 min | root | existing password |
+| `ot 30` | 30 min | tunneluser | temp password |
+| `ot 30 root` | 30 min | root | existing password |
+| `ot 60 root "ssh-key..."` | 60 min | root | SSH key |
 
 ---
 
-# Requirements
+## How it Works
+
+1. **Server**: Creates reverse tunnel via bore.pub
+2. **Output**: Shows `bore.pub:PORT` + credentials
+3. **You**: Connect via `ssh user@bore.pub -p PORT`
+
+---
+
+## Requirements
 
 - Linux server
 - Root/sudo access
