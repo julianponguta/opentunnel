@@ -1,7 +1,7 @@
 ---
 name: opentunnel-connect
 description: Connect to remote servers behind NAT using reverse SSH tunnel with bore.
-version: 4.0.0
+version: 5.0.0
 ---
 
 # OpenTunnel Connect Skill
@@ -19,11 +19,11 @@ Ask user:
 ### Step 2: Execute Binary
 
 ```powershell
-powershell.exe -Command "& 'C:\Users\Julian\.config\opencode\skills\opentunnel-connect\opentunnel.exe' --user USERNAME"
+& "$env:USERPROFILE\.config\opencode\skills\opentunnel-connect\opentunnel.exe" --user USERNAME --minutes MINUTES
 ```
 
 The binary will:
-1. Read/create SSH key from ~/.ssh/
+1. Read/create SSH key from `~/.ssh/id_ed25519.pub`
 2. Output curl command for remote server
 3. Wait for user to input tunnel info
 
@@ -48,8 +48,13 @@ ezssh_ssh_execute({
   hosts: ["bore.pub"],
   port: PORT,
   username: "USERNAME",
-  privateKeyPath: "C:/Users/Julian/.ssh/id_ed25519"
+  privateKeyPath: process.env.USERPROFILE + "/.ssh/id_ed25519"
 })
+```
+
+On Linux/macOS:
+```javascript
+privateKeyPath: process.env.HOME + "/.ssh/id_ed25519"
 ```
 
 ## Quick Install (for users)

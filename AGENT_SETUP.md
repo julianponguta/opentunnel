@@ -48,8 +48,15 @@ When user requests remote server access, follow these steps:
 ```
 
 ### Step 2: Execute Binary
+
+**Windows:**
 ```powershell
 & "$env:USERPROFILE\.config\opencode\skills\opentunnel-connect\opentunnel.exe" --user USERNAME --minutes MINUTES
+```
+
+**Linux/macOS:**
+```bash
+~/.config/opencode/skills/opentunnel-connect/opentunnel --user USERNAME --minutes MINUTES
 ```
 
 ### Step 3: Give Command to User
@@ -62,13 +69,26 @@ curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/conn
 User provides: `bore.pub:PORT`
 
 ### Step 5: Connect
+
+**Windows:**
 ```javascript
 ezssh_ssh_execute({
   command: "hostname && uptime",
   hosts: ["bore.pub"],
   port: PORT,
   username: "USERNAME",
-  privateKeyPath: "C:/Users/Julian/.ssh/id_ed25519"
+  privateKeyPath: process.env.USERPROFILE + "/.ssh/id_ed25519"
+})
+```
+
+**Linux/macOS:**
+```javascript
+ezssh_ssh_execute({
+  command: "hostname && uptime",
+  hosts: ["bore.pub"],
+  port: PORT,
+  username: "USERNAME",
+  privateKeyPath: process.env.HOME + "/.ssh/id_ed25519"
 })
 ```
 
