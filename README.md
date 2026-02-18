@@ -1,40 +1,96 @@
 # OpenTunnel
 
-Connect to remote servers behind NAT using reverse SSH tunnels.
+Connect to remote servers behind NAT/firewall using reverse SSH tunnels.
 
 ---
 
-# Quick Install
+# Quick Start (1 minute)
+
+## Step 1: Install on your server
 
 ```bash
-echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@}"; }' >> ~/.bashrc && source ~/.bashrc
+curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/install.sh | sudo bash
 ```
 
-# Usage
+This adds the `ot` command to your shell.
+
+## Step 2: Run on server
 
 ```bash
 ot              # 60 min, tunneluser
-ot root         # 60 min, root (needs SSH key pre-configured)
-ot 60           # 60 min, tunneluser  
-ot 60 root     # 60 min, root
-ot 30 root     # 30 min, root
+ot root         # 60 min, root
 ```
 
-**If using root and SSH key not configured:**
+## Step 3: Connect from your PC
+
+The server will show:
+```
+Tunnel: bore.pub:12345
+```
+
+Connect with:
+```bash
+ssh -i ~/.ssh/id_ed25519 tunneluser@bore.pub -p 12345
+```
+
+---
+
+# Commands
+
+```bash
+ot              # 60 min, tunneluser
+ot root         # 60 min, root (needs SSH key)
+ot 30           # 30 min, tunneluser
+ot 30 root      # 30 min, root
+```
+
+If using root without SSH key configured:
 ```bash
 ot 60 root "ssh-ed25519 AAAA..."
 ```
 
 ---
 
+# Installation Options
+
+## Option 1: One-liner (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/install.sh | sudo bash
+```
+
+## Option 2: Add to .bashrc manually
+
+```bash
+echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@}"; }' >> ~/.bashrc && source ~/.bashrc
+```
+
+## Option 3: Download script
+
+```bash
+curl -fsSL -o /usr/local/bin/ot https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh
+chmod +x /usr/local/bin/ot
+sudo ot root
+```
+
+---
+
 # How it works
 
-1. **Remote**: Runs `bore local 22 --to bore.pub`
-2. **Remote**: Shows `bore.pub:PORT`
-3. **Local**: Connect to `bore.pub:PORT`
+1. **Server runs**: `bore local 22 --to bore.pub` (creates reverse tunnel)
+2. **Server shows**: `bore.pub:PORT`
+3. **You connect**: `ssh user@bore.pub -p PORT`
+
+---
+
+# Requirements
+
+- Linux server (any distro)
+- Root/sudo access
+- Outbound HTTPS (port 443)
 
 ---
 
 # OpenCode Skill
 
-See `skills/opentunnel-connect/SKILL.md`
+For AI-assisted connections, see `skills/opentunnel-connect/SKILL.md`
