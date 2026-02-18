@@ -1,38 +1,26 @@
 # OpenTunnel
 
-Connect to remote servers behind NAT/firewall using reverse SSH tunnels.
+Connect to remote servers behind NAT using reverse SSH tunnels.
 
 ---
 
-# Quick Install (Manual Use)
-
-## Install on your server
-
-Add this to your `~/.bashrc`:
+# Quick Install (on your server)
 
 ```bash
-echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@:-60}"; }' >> ~/.bashrc && source ~/.bashrc
+echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@}"; }' >> ~/.bashrc && source ~/.bashrc
 ```
 
-## Usage
+# Usage
 
 ```bash
-# Default: 60 minutes, tunneluser
-ot
-
-# 30 minutes, tunneluser
-ot 30
-
-# 60 minutes, root
-ot 60 root
-
-# With SSH key inline
-ot 60 root "ssh-ed25519 AAAA..."
-
-# Or enter SSH key when prompted
-ot 60 root
-# Then paste your key
+# Basic usage (requires SSH key as argument)
+ot 60 root "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com"
 ```
+
+**Arguments:**
+1. Minutes (default: 60)
+2. Username (default: tunneluser)
+3. SSH key (required)
 
 ---
 
@@ -42,18 +30,8 @@ See `skills/opentunnel-connect/SKILL.md`
 
 ---
 
-# Files
-
-- `connect.sh` - Main script for manual use
-- `opentunnel.exe` - Windows binary for OpenCode
-- `opentunnel.go` - Go source code
-- `skills/opentunnel-connect/` - OpenCode skill
-
----
-
 # How it works
 
-1. **Local**: Get your SSH key
-2. **Remote**: Run `ot` command → creates SSH tunnel via bore
-3. **Remote**: Shows `bore.pub:PORT`
-4. **Local**: Connect to `bore.pub:PORT`
+1. **Remote**: Runs `bore local 22 --to bore.pub` 
+2. **Remote**: Shows `bore.pub:PORT`
+3. **Local**: Connect to `bore.pub:PORT`

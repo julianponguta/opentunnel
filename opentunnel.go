@@ -42,6 +42,7 @@ func getSSHKey() string {
 
 func main() {
 	user := "tunneluser"
+	minutes := 60
 	sshKey := getSSHKey()
 
 	if sshKey == "" {
@@ -53,6 +54,9 @@ func main() {
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--user" && i+1 < len(args) {
 			user = args[i+1]
+			i++
+		} else if args[i] == "--minutes" && i+1 < len(args) {
+			fmt.Sscanf(args[i+1], "%d", &minutes)
 			i++
 		} else if args[i] == "--ssh-key" && i+1 < len(args) {
 			sshKey = args[i+1]
@@ -70,7 +74,7 @@ func main() {
 	fmt.Println("\n========================================")
 	fmt.Println("RUN THIS COMMAND ON REMOTE SERVER:")
 	fmt.Println("========================================")
-	fmt.Printf("curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh | sudo bash -s -- %s \"%s\"\n", user, sshKey)
+	fmt.Printf("curl -fsSL \"https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%%s)\" | sudo bash -s -- %d %s \"%s\"\n", minutes, user, sshKey)
 	fmt.Println("========================================")
 	fmt.Println("\n[OK] After running, the remote will give you:")
 	fmt.Println("    bore.pub:PORT")

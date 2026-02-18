@@ -2,7 +2,7 @@
 
 # OpenTunnel - Simple reverse SSH tunnel
 # Usage: ot [minutes] [username] [ssh_key]
-# Example: ot 60 root "ssh-ed25519..."
+# Example: ot 60 root "ssh-ed25519 AAAA..."
 
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
 TEMP_USER="tunneluser"
@@ -29,27 +29,7 @@ elif [ -n "$1" ]; then
 fi
 
 if [ -z "$SSH_KEY" ]; then
-    log_error "SSH key required as argument"
-    log_error "Usage: ot [minutes] [username] [ssh_key]"
-    log_error "Example: ot 60 root \"ssh-ed25519 AAAA...\""
-    exit 1
-fi
-
-# Simple parse: first arg = minutes (if number), second = user, third = ssh_key
-if [[ "$1" =~ ^[0-9]+$ ]]; then
-    EXPIRE_MINUTES="$1"
-    TEMP_USER="${2:-tunneluser}"
-    SSH_KEY="$3"
-elif [ -n "$1" ]; then
-    TEMP_USER="$1"
-    EXPIRE_MINUTES="${2:-60}"
-    SSH_KEY="$3"
-fi
-
-echo "[DEBUG] After parse - minutes: $EXPIRE_MINUTES, user: $TEMP_USER, key provided: $([ -n "$SSH_KEY" ] && echo yes || echo no)" >&2
-
-if [ -z "$SSH_KEY" ]; then
-    log_error "SSH key required as third argument"
+    log_error "SSH key required"
     log_error "Usage: ot [minutes] [username] [ssh_key]"
     log_error "Example: ot 60 root \"ssh-ed25519 AAAA...\""
     exit 1
