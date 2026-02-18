@@ -2,7 +2,12 @@
 
 # OpenTunnel - Simple reverse SSH tunnel
 # Usage: ot [minutes] [username] [ssh_key]
-# Example: ot 60 root "ssh-ed25519 AAAA..."
+# Examples:
+#   ot              # 60 min, tunneluser
+#   ot root         # 60 min, root
+#   ot 60           # 60 min, tunneluser
+#   ot 60 root      # 60 min, root
+#   ot 60 root "ssh-ed25519..."  # with SSH key
 
 SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
 TEMP_USER="tunneluser"
@@ -17,27 +22,40 @@ NC='\033[0m'
 log_info() { echo -e "${GREEN}[+]${NC} $1" >&2; }
 log_error() { echo -e "${RED}[x]${NC} $1" >&2; }
 
-# Parse: ot minutes user ssh_key
-if [[ "$1" =~ ^[0-9]+$ ]]; then
-    EXPIRE_MINUTES="$1"
-    TEMP_USER="${2:-tunneluser}"
-    SSH_KEY="$3"
-elif [ -n "$1" ]; then
-    TEMP_USER="$1"
-    EXPIRE_MINUTES="${2:-60}"
-    SSH_KEY="$3"
-fi
+# Parse arguments - flexible format
+# ot          → 60 tunneluser
+# ot root     → 60 root
+# ot 60       → 60 tunneluser  
+# ot 60 root  → 60 root
+# ot root 60  → 60 root (swap allowed)
+for arg in "$@"; do
+    if [[ "$arg" =~ ^ssh- ]]; then
+        SSH_KEY="$arg"
+    elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+        EXPIRE_MINUTES="$arg"
+    elif [ -n "$arg" ]; then
+        TEMP_USER="$arg"
+    fi
+done
 
-if [ -z "$SSH_KEY" ]; then
-    log_error "SSH key required"
-    log_error "Usage: ot [minutes] [username] [ssh_key]"
-    log_error "Example: ot 60 root \"ssh-ed25519 AAAA...\""
-    exit 1
+# If root and no SSH key provided, try to use existing or error
+if [ "$TEMP_USER" = "root" ] && [ -z "$SSH_KEY" ]; then
+    if [ -f "/root/.ssh/authorized_keys" ] && [ -s "/root/.ssh/authorized_keys" ]; then
+        log_info "Using existing SSH key for root"
+    else
+        log_error "SSH key required for root user"
+        log_error "Usage: ot 60 root \"ssh-ed25519...\""
+        exit 1
+    fi
 fi
 
 setup_user_with_key() {
     local user=$1
     local key=$2
+    
+    if [ -z "$key" ]; then
+        return 0
+    fi
     
     if [ "$user" = "root" ]; then
         HOME_DIR="/root"
@@ -118,7 +136,7 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-log_info "OpenTunnel - ${EXPIRE_MINUTES} minutes, user: ${TEMP_USER}"
+log_info "OpenTunnel - ${EXPIRE_MINUTES} min, user: ${TEMP_USER}"
 
 if ! install_bore; then
     log_error "Failed to install bore"

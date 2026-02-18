@@ -13,32 +13,28 @@ echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentun
 # Usage
 
 ```bash
-ot 60 root "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com"
+ot              # 60 min, tunneluser
+ot root         # 60 min, root (needs SSH key pre-configured)
+ot 60           # 60 min, tunneluser  
+ot 60 root     # 60 min, root
+ot 30 root     # 30 min, root
 ```
 
-**Arguments:**
-1. Minutes (default: 60)
-2. Username (default: tunneluser)
-3. SSH key (required)
-
----
-
-# OpenCode Skill
-
-When user wants to connect to a remote server behind NAT:
-
-1. Ask: Username? (default: tunneluser), Minutes? (default: 60)
-2. Run `opentunnel.exe --user USERNAME --minutes MINUTES`
-3. User runs curl command on remote server
-4. User provides `bore.pub:PORT`
-5. Connect with ezssh
-
-See `skills/opentunnel-connect/SKILL.md` for full details.
+**If using root and SSH key not configured:**
+```bash
+ot 60 root "ssh-ed25519 AAAA..."
+```
 
 ---
 
 # How it works
 
-1. **Remote**: Runs `bore local 22 --to bore.pub` 
+1. **Remote**: Runs `bore local 22 --to bore.pub`
 2. **Remote**: Shows `bore.pub:PORT`
 3. **Local**: Connect to `bore.pub:PORT`
+
+---
+
+# OpenCode Skill
+
+See `skills/opentunnel-connect/SKILL.md`
