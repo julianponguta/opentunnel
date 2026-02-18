@@ -4,7 +4,7 @@ Connect to remote servers behind NAT using reverse SSH tunnels.
 
 ---
 
-# Quick Install (on your server)
+# Quick Install
 
 ```bash
 echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@}"; }' >> ~/.bashrc && source ~/.bashrc
@@ -13,7 +13,6 @@ echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentun
 # Usage
 
 ```bash
-# Basic usage (requires SSH key as argument)
 ot 60 root "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h julianponguta@gmail.com"
 ```
 
@@ -26,7 +25,15 @@ ot 60 root "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4
 
 # OpenCode Skill
 
-See `skills/opentunnel-connect/SKILL.md`
+When user wants to connect to a remote server behind NAT:
+
+1. Ask: Username? (default: tunneluser), Minutes? (default: 60)
+2. Run `opentunnel.exe --user USERNAME --minutes MINUTES`
+3. User runs curl command on remote server
+4. User provides `bore.pub:PORT`
+5. Connect with ezssh
+
+See `skills/opentunnel-connect/SKILL.md` for full details.
 
 ---
 
