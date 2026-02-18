@@ -93,4 +93,4 @@ sudo ot root
 
 # OpenCode / AI Agents
 
-For AI-assisted connections, see: https://github.com/julianponguta/opentunnel/blob/main/AGENT_SETUP.md
+Install the opentunnel-connect skill and use it by following: https://raw.githubusercontent.com/julianponguta/opentunnel/main/AGENT_SETUP.md
