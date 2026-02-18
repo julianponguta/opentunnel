@@ -91,6 +91,6 @@ sudo ot root
 
 ---
 
-# OpenCode Skill
+# OpenCode / AI Agents
 
-For AI-assisted connections, see `skills/opentunnel-connect/SKILL.md`
+For AI-assisted connections, see: https://github.com/julianponguta/opentunnel/blob/main/AGENT_SETUP.md

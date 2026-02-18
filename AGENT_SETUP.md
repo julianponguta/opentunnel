@@ -1,16 +1,14 @@
 # OpenTunnel Connect - Agent Setup
 
-This file contains detailed instructions for AI agents to set up and use OpenTunnel Connect.
+This file contains instructions for AI agents to connect to remote servers behind NAT.
 
 ## Overview
 
-OpenTunnel Connect uses two services:
-- **localhost.run** - For local webhook (exposes port via HTTP tunnel)
-- **bore** - For remote SSH tunnel
+OpenTunnel uses **bore** to create reverse SSH tunnels from remote servers.
 
-## Setup Steps
+## Setup
 
-### Step 1: Install ezssh-mcp globally
+### Step 1: Install ezssh-mcp
 
 ```bash
 npm install -g ezssh-mcp
@@ -37,63 +35,58 @@ Create or update `~/.config/opencode/opencode.json`:
 npx skills add julianponguta/opentunnel/skills/opentunnel-connect
 ```
 
-### Step 4: Install Dependencies
-
-```bash
-cd skills/opentunnel-connect && npm install
-```
-
 ## Usage
 
-### Step 1: Start Webhook Server
+When user wants to connect to a remote server behind NAT:
 
-```bash
-cd skills/opentunnel-connect/scripts && node server.js
+### Step 1: Ask Options
+
+Ask user:
+- Username? (default: tunneluser)
+- Minutes? (default: 60)
+
+### Step 2: Execute Binary
+
+```powershell
+powershell.exe -Command "& 'C:\Users\Julian\.config\opencode\skills\opentunnel-connect\opentunnel.exe' --user USERNAME --minutes MINUTES"
 ```
 
-Wait for output like: `xxx.lhr.life`
+### Step 3: User Runs Command
 
-### Step 2: Generate Command for User
-
-```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- WEBHOOK_URL MINUTES USER
-```
+The binary outputs a curl command. User runs it on remote server.
 
 Example:
-```
-curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/skills/opentunnel-connect/scripts/remote.sh" | sudo bash -s -- xxx.lhr.life 60 root
-```
-
-### Step 3: Wait for Credentials
-
-Poll:
 ```bash
-curl http://localhost:3000/status
+curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- 60 root "ssh-ed25519..."
 ```
 
-When status is `ready`, credentials will be in the response:
-```json
-{
-  "status": "ready",
-  "credentials": {
-    "user": "root",
-    "password": "otp_abc123...",
-    "host": "bore.pub",
-    "port": 12345
-  }
-}
+### Step 4: Get Tunnel Info
+
+User provides: `bore.pub:PORT`
+
+### Step 5: Connect with ezssh
+
+```javascript
+ezssh_ssh_execute({
+  command: "hostname && uptime",
+  hosts: ["bore.pub"],
+  port: PORT,
+  username: "USERNAME",
+  privateKeyPath: "C:/Users/Julian/.ssh/id_ed25519"
+})
 ```
 
-### Step 4: Connect via SSH
+## Credentials Format
 
-Use ezssh_ssh_execute:
-- host: `bore.pub`
-- port: [received port]
-- username: [received user]
-- password: [received password]
+```
+--- CREDENTIALS ---
+HOST_PORT=bore.pub:12345
+USER=root
+--- END CREDENTIALS ---
+```
 
 ## Files
 
-- `skills/opentunnel-connect/scripts/server.js` - Webhook server
-- `skills/opentunnel-connect/scripts/remote.sh` - Remote script
+- `opentunnel.exe` - Windows binary for local machine
+- `connect.sh` - Script to run on remote server
 - `skills/opentunnel-connect/SKILL.md` - Skill definition
