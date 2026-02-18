@@ -4,6 +4,14 @@ Connect to remote servers behind NAT/firewall using reverse SSH tunnels.
 
 ---
 
+# OpenCode / AI Agents
+
+```
+Install the opentunnel-connect skill and use it by following: https://raw.githubusercontent.com/julianponguta/opentunnel/main/AGENT_SETUP.md
+```
+
+---
+
 # Quick Start (1 minute)
 
 ## Step 1: Install on your server
@@ -88,9 +96,3 @@ sudo ot root
 - Linux server (any distro)
 - Root/sudo access
 - Outbound HTTPS (port 443)
-
----
-
-# OpenCode / AI Agents
-
-Install the opentunnel-connect skill and use it by following: https://raw.githubusercontent.com/julianponguta/opentunnel/main/AGENT_SETUP.md
