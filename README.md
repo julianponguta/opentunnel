@@ -12,31 +12,29 @@ Install the opentunnel-connect skill and use it by following: https://raw.github
 
 ---
 
-# Quick Start (1 minute)
+# Quick Start
 
-## Step 1: Install on your server
+## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/install.sh | sudo bash
+echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@}"; }' >> ~/.bashrc && source ~/.bashrc
 ```
 
-This adds the `ot` command to your shell.
-
-## Step 2: Run on server
+## Run
 
 ```bash
 ot              # 60 min, tunneluser
 ot root         # 60 min, root
 ```
 
-## Step 3: Connect from your PC
+## Connect
 
-The server will show:
+The server shows:
 ```
 Tunnel: bore.pub:12345
 ```
 
-Connect with:
+Connect:
 ```bash
 ssh -i ~/.ssh/id_ed25519 tunneluser@bore.pub -p 12345
 ```
@@ -47,45 +45,21 @@ ssh -i ~/.ssh/id_ed25519 tunneluser@bore.pub -p 12345
 
 ```bash
 ot              # 60 min, tunneluser
-ot root         # 60 min, root (needs SSH key)
+ot root         # 60 min, root
 ot 30           # 30 min, tunneluser
 ot 30 root      # 30 min, root
 ```
 
-If using root without SSH key configured:
+With SSH key:
 ```bash
 ot 60 root "ssh-ed25519 AAAA..."
 ```
 
 ---
 
-# Installation Options
-
-## Option 1: One-liner (recommended)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/install.sh | sudo bash
-```
-
-## Option 2: Add to .bashrc manually
-
-```bash
-echo 'ot() { curl -fsSL "https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh?v=$(date +%s)" | sudo bash -s -- "${@}"; }' >> ~/.bashrc && source ~/.bashrc
-```
-
-## Option 3: Download script
-
-```bash
-curl -fsSL -o /usr/local/bin/ot https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.sh
-chmod +x /usr/local/bin/ot
-sudo ot root
-```
-
----
-
 # How it works
 
-1. **Server runs**: `bore local 22 --to bore.pub` (creates reverse tunnel)
+1. **Server runs**: `bore local 22 --to bore.pub`
 2. **Server shows**: `bore.pub:PORT`
 3. **You connect**: `ssh user@bore.pub -p PORT`
 
@@ -93,6 +67,6 @@ sudo ot root
 
 # Requirements
 
-- Linux server (any distro)
+- Linux server
 - Root/sudo access
 - Outbound HTTPS (port 443)
