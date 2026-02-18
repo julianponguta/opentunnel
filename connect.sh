@@ -14,6 +14,7 @@ TEMP_USER="tunneluser"
 EXPIRE_MINUTES=60
 BORE_PID=""
 SSH_KEY=""
+TEMP_PASSWORD=""
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -48,7 +49,7 @@ if [ -z "$SSH_KEY" ]; then
         TEMP_PASS=$(openssl rand -base64 12 2>/dev/null | tr -dc 'a-zA-Z0-9' | head -c 16)
         useradd -m -s /bin/bash "$TEMP_USER" 2>/dev/null || true
         echo "$TEMP_USER:$TEMP_PASS" | chpasswd
-        SSH_KEY="TEMP_PASSWORD:$TEMP_PASS"
+        TEMP_PASSWORD="$TEMP_PASS"
         log_info "Created temporary user ${TEMP_USER} with password"
     fi
 fi
@@ -158,9 +159,11 @@ echo "========================================================"
 echo ""
 echo "Tunnel: bore.pub:${PORT}"
 echo "User: ${TEMP_USER}"
-if [[ "$SSH_KEY" =~ ^TEMP_PASSWORD: ]]; then
-    PASS="${SSH_KEY#TEMP_PASSWORD:}"
-    echo "Password: ${PASS}"
+if [ -n "$TEMP_PASSWORD" ]; then
+    echo "Password: ${TEMP_PASSWORD}"
+fi
+if [ "$TEMP_USER" = "root" ] && [ -z "$SSH_KEY" ]; then
+    echo "Password: (use your existing root password)"
 fi
 echo ""
 echo "COPY TO YOUR LOCAL MACHINE:"
