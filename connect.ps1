@@ -166,10 +166,12 @@ foreach ($f in @($logOut, $logErr)) { if (Test-Path $f) { Remove-Item $f -Force 
 
 Write-Info "Abriendo tunel TCP via Pinggy (solo ssh, sin instalar nada)..."
 # 127.0.0.1 en vez de localhost: bug conocido del ssh de Windows.
-$proc = Start-Process -FilePath $sshExe -ArgumentList "-NT","-o","StrictHostKeyChecking=no","-o","UserKnownHostsFile=NUL","-o","ServerAliveInterval=30","-o","ServerAliveCountMax=3","-o","ConnectTimeout=15","-o","BatchMode=yes","-p","443","-R0:127.0.0.1:22","tcp@free.pinggy.io" -RedirectStandardOutput $logOut -RedirectStandardError $logErr -RedirectStandardInput $emptyIn -WindowStyle Hidden -PassThru
+# IMPORTANTE: sin -N. Pinggy anuncia la URL tcp:// por el canal de shell;
+# con -N nunca la imprime y el parseo falla (stdin ya viene de archivo vacio).
+$proc = Start-Process -FilePath $sshExe -ArgumentList "-T","-o","StrictHostKeyChecking=no","-o","UserKnownHostsFile=NUL","-o","ServerAliveInterval=30","-o","ServerAliveCountMax=3","-o","ConnectTimeout=15","-o","BatchMode=yes","-o","LogLevel=ERROR","-p","443","-R0:127.0.0.1:22","tcp@free.pinggy.io" -RedirectStandardOutput $logOut -RedirectStandardError $logErr -RedirectStandardInput $emptyIn -WindowStyle Hidden -PassThru
 
 $Tunnel = ""
-for ($i = 0; $i -lt 25; $i++) {
+for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Seconds 1
     foreach ($f in @($logOut, $logErr)) {
         if (Test-Path $f) {

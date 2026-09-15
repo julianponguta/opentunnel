@@ -134,10 +134,12 @@ start_tunnel() {
     rm -f /tmp/ot_pinggy.log
     # tcp@free.pinggy.io no pide auth. BatchMode evita que se cuelgue
     # preguntando password si el servidor alguna vez lo pidiera.
-    bash -c 'ssh -NT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o ConnectTimeout=15 -o BatchMode=yes -p 443 -R0:localhost:22 tcp@free.pinggy.io 2>&1' > /tmp/ot_pinggy.log &
+    # IMPORTANTE: sin -N. Pinggy anuncia la URL tcp:// por el canal de
+    # shell; con -N nunca la imprime y el parseo falla. -n desacopla stdin.
+    bash -c 'ssh -nT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o ConnectTimeout=15 -o BatchMode=yes -o LogLevel=ERROR -p 443 -R0:localhost:22 tcp@free.pinggy.io 2>&1' > /tmp/ot_pinggy.log &
     SSH_PID=$!
 
-    for i in $(seq 1 25); do
+    for i in $(seq 1 30); do
         if [ -s /tmp/ot_pinggy.log ]; then
             TUNNEL=$(grep -oE 'tcp://[A-Za-z0-9.-]+:[0-9]+' /tmp/ot_pinggy.log | head -1 | sed 's|tcp://||')
             if [ -n "$TUNNEL" ]; then
