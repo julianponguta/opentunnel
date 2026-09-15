@@ -43,6 +43,8 @@ if (-not $isAdmin) {
 
 $TempPassword = ""
 
+Write-Info "OpenTunnel v7.2 - $Minutes min, user: $User"
+
 # --- Usuario local ---
 $existingUser = $null
 try { $existingUser = Get-LocalUser -Name $User -ErrorAction Stop } catch { $existingUser = $null }
@@ -168,29 +170,37 @@ Write-Info "Abriendo tunel TCP via Pinggy (solo ssh, sin instalar nada)..."
 # 127.0.0.1 en vez de localhost: bug conocido del ssh de Windows.
 # IMPORTANTE: sin -N. Pinggy anuncia la URL tcp:// por el canal de shell;
 # con -N nunca la imprime y el parseo falla (stdin ya viene de archivo vacio).
-$proc = Start-Process -FilePath $sshExe -ArgumentList "-T","-o","StrictHostKeyChecking=no","-o","UserKnownHostsFile=NUL","-o","ServerAliveInterval=30","-o","ServerAliveCountMax=3","-o","ConnectTimeout=15","-o","BatchMode=yes","-o","LogLevel=ERROR","-p","443","-R0:127.0.0.1:22","tcp@free.pinggy.io" -RedirectStandardOutput $logOut -RedirectStandardError $logErr -RedirectStandardInput $emptyIn -WindowStyle Hidden -PassThru
-
+$Endpoints = @("tcp@free.pinggy.io", "tcp@a.pinggy.io")
 $Tunnel = ""
-for ($i = 0; $i -lt 30; $i++) {
-    Start-Sleep -Seconds 1
-    foreach ($f in @($logOut, $logErr)) {
-        if (Test-Path $f) {
-            $content = Get-Content $f -Raw -ErrorAction SilentlyContinue
-            if ($null -ne $content) {
-                $m = [regex]::Match($content, 'tcp://([A-Za-z0-9.-]+):([0-9]+)')
-                if ($m.Success) {
-                    $Tunnel = $m.Groups[1].Value + ":" + $m.Groups[2].Value
-                    break
+$proc = $null
+foreach ($ep in $Endpoints) {
+    Write-Info "Trying $ep ..."
+    foreach ($f in @($logOut, $logErr)) { if (Test-Path $f) { Remove-Item $f -Force } }
+    $proc = Start-Process -FilePath $sshExe -ArgumentList "-T","-o","StrictHostKeyChecking=no","-o","UserKnownHostsFile=NUL","-o","ServerAliveInterval=30","-o","ServerAliveCountMax=3","-o","ConnectTimeout=15","-o","BatchMode=yes","-o","LogLevel=ERROR","-p","443","-R0:127.0.0.1:22",$ep -RedirectStandardOutput $logOut -RedirectStandardError $logErr -RedirectStandardInput $emptyIn -WindowStyle Hidden -PassThru
+
+    for ($i = 0; $i -lt 20; $i++) {
+        Start-Sleep -Seconds 1
+        foreach ($f in @($logOut, $logErr)) {
+            if (Test-Path $f) {
+                $content = Get-Content $f -Raw -ErrorAction SilentlyContinue
+                if ($null -ne $content) {
+                    $m = [regex]::Match($content, 'tcp://([A-Za-z0-9.-]+):([0-9]+)')
+                    if ($m.Success) {
+                        $Tunnel = $m.Groups[1].Value + ":" + $m.Groups[2].Value
+                        break
+                    }
                 }
             }
         }
+        if ($Tunnel -ne "") { break }
+        if ($proc.HasExited) { break }
     }
-    if ($Tunnel -ne "") { break }
-    if ($proc.HasExited) {
-        Write-ErrMsg "El tunel ssh termino inesperadamente:"
-        foreach ($f in @($logOut, $logErr)) { if (Test-Path $f) { Get-Content $f | Write-Host } }
-        exit 1
+    if ($Tunnel -ne "") {
+        Write-Info "Tunnel ready via ${ep}: $Tunnel"
+        break
     }
+    try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+    Write-Host "[x] No URL from $ep, probando siguiente..." -ForegroundColor Red
 }
 
 if ([string]::IsNullOrEmpty($Tunnel)) {

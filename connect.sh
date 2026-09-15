@@ -128,36 +128,45 @@ ensure_ssh_client() {
     command -v ssh &>/dev/null
 }
 
+# Endpoints a probar en orden (el free a veces falla segun PoP/red)
+PINGGY_ENDPOINTS="tcp@free.pinggy.io tcp@a.pinggy.io"
+
 start_tunnel() {
     log_info "Opening TCP tunnel via Pinggy (solo ssh, sin instalar nada)..."
 
-    rm -f /tmp/ot_pinggy.log
-    # tcp@free.pinggy.io no pide auth. BatchMode evita que se cuelgue
-    # preguntando password si el servidor alguna vez lo pidiera.
-    # IMPORTANTE: sin -N. Pinggy anuncia la URL tcp:// por el canal de
-    # shell; con -N nunca la imprime y el parseo falla. -n desacopla stdin.
-    bash -c 'ssh -nT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o ConnectTimeout=15 -o BatchMode=yes -o LogLevel=ERROR -p 443 -R0:localhost:22 tcp@free.pinggy.io 2>&1' > /tmp/ot_pinggy.log &
-    SSH_PID=$!
+    for ENDPOINT in $PINGGY_ENDPOINTS; do
+        log_info "Trying ${ENDPOINT} ..."
+        rm -f /tmp/ot_pinggy.log
+        # tcp@... no pide auth. BatchMode evita que se cuelgue
+        # preguntando password si el servidor alguna vez lo pidiera.
+        # IMPORTANTE: sin -N. Pinggy anuncia la URL tcp:// por el canal de
+        # shell; con -N nunca la imprime y el parseo falla. -n desacopla stdin.
+        bash -c "ssh -nT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o ConnectTimeout=15 -o BatchMode=yes -o LogLevel=ERROR -p 443 -R0:localhost:22 ${ENDPOINT} 2>&1" > /tmp/ot_pinggy.log &
+        SSH_PID=$!
 
-    for i in $(seq 1 30); do
-        if [ -s /tmp/ot_pinggy.log ]; then
-            TUNNEL=$(grep -oE 'tcp://[A-Za-z0-9.-]+:[0-9]+' /tmp/ot_pinggy.log | head -1 | sed 's|tcp://||')
-            if [ -n "$TUNNEL" ]; then
-                log_info "Tunnel ready: ${TUNNEL}"
-                echo "$TUNNEL"
-                return 0
+        for i in $(seq 1 20); do
+            if [ -s /tmp/ot_pinggy.log ]; then
+                TUNNEL=$(grep -oE 'tcp://[A-Za-z0-9.-]+:[0-9]+' /tmp/ot_pinggy.log | head -1 | sed 's|tcp://||')
+                if [ -n "$TUNNEL" ]; then
+                    log_info "Tunnel ready via ${ENDPOINT}: ${TUNNEL}"
+                    echo "$TUNNEL"
+                    return 0
+                fi
             fi
-        fi
-        # Si ssh murio, mostrar log y fallar rapido
-        if ! kill -0 $SSH_PID 2>/dev/null; then
-            log_error "ssh tunnel exited unexpectedly:"
-            cat /tmp/ot_pinggy.log >&2
-            return 1
-        fi
-        sleep 1
+            # Si ssh murio, pasar al siguiente endpoint
+            if ! kill -0 $SSH_PID 2>/dev/null; then
+                break
+            fi
+            sleep 1
+        done
+
+        kill $SSH_PID 2>/dev/null
+        wait $SSH_PID 2>/dev/null
+        SSH_PID=""
+        log_error "No URL from ${ENDPOINT}, probando siguiente..."
     done
 
-    log_error "Failed to establish tunnel (timeout)"
+    log_error "Failed to establish tunnel (todos los endpoints fallaron)"
     cat /tmp/ot_pinggy.log >&2
     return 1
 }
@@ -176,7 +185,7 @@ fi
 # SSH primero (el tunel necesita algo escuchando en 22)
 ensure_sshd
 
-log_info "OpenTunnel - ${EXPIRE_MINUTES} min, user: ${TEMP_USER}"
+log_info "OpenTunnel v7.2 - ${EXPIRE_MINUTES} min, user: ${TEMP_USER}"
 
 if ! ensure_ssh_client; then
     log_error "Failed to install OpenSSH client"
