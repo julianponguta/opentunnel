@@ -12,7 +12,10 @@
 param(
     [int]$Minutes = 60,
     [string]$User = "tunneluser",
-    [string]$SshKey = ""
+    [string]$SshKey = "",
+    [string]$Relay = "",
+    [string]$RelayKey = "",
+    [string]$RelayPort = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,7 +47,7 @@ if (-not $isAdmin) {
 
 $TempPassword = ""
 
-Write-Info "OpenTunnel v7.5 - $Minutes min, user: $User"
+Write-Info "OpenTunnel v7.6 - $Minutes min, user: $User"
 
 # --- Usuario local ---
 $existingUser = $null
@@ -168,7 +171,34 @@ if ([string]::IsNullOrEmpty($sshExe)) {
     Write-ErrMsg "No se encontro el cliente ssh"
     exit 1
 }
-
+# --- Modo relay propio: ssh -R contra tu VPS (sin Pinggy, sin bore, sin antivirus) ---
+# Uso: -Relay "otunnel@sbserver.co" [-RelayPort 22222]
+if ($Relay -ne "") {
+    $relayKeyFile = Join-Path $env:TEMP "ot_relay"
+    $defaultRelayKey = @'
+-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACAb/dUvw1jIIM4bb/aFUsAQRSHhvIpMha/xcbJzbet8VAAAAJDKaycKymsn
+CgAAAAtzc2gtZWQyNTUxOQAAACAb/dUvw1jIIM4bb/aFUsAQRSHhvIpMha/xcbJzbet8VA
+AAAEAo++TB1RavjMJihIigqLflRRLufGcYqhbUTg+mhyKnbhv91S/DWMggzhtv9oVSwBBF
+IeG8ikyFr/FxsnNt63xUAAAAB290dW5uZWwBAgMEBQY=
+-----END OPENSSH PRIVATE KEY-----
+'@
+    if ($RelayKey -ne "") { $defaultRelayKey = ($RelayKey -replace '\\n', "`n") }
+    Set-Content -Path $relayKeyFile -Value $defaultRelayKey -Encoding ASCII
+    if ([string]::IsNullOrEmpty($RelayPort)) { $RelayPort = Get-Random -Minimum 20000 -Maximum 40000 }
+    $TunHost = ($Relay -split '@')[-1]
+    $TunPort = $RelayPort
+    $Tunnel = "${TunHost}:${TunPort}"
+    # -N: sin shell (el usuario relay no la necesita). Bind 0.0.0.0: el puerto
+    # debe quedar en la interfaz publica del VPS (GatewayPorts clientspecified).
+    $sshArgs = @("-N","-T","-o","StrictHostKeyChecking=no","-o","UserKnownHostsFile=NUL","-o","ServerAliveInterval=30","-o","ServerAliveCountMax=3","-o","ConnectTimeout=15","-o","BatchMode=yes","-o","LogLevel=ERROR","-i",$relayKeyFile,"-R","0.0.0.0:${RelayPort}:127.0.0.1:22",$Relay)
+    $proc = Start-Process -FilePath $sshExe -ArgumentList $sshArgs -WindowStyle Hidden -PassThru
+    Start-Sleep -Seconds 5
+    if ($proc.HasExited) { Write-ErrMsg "Relay $Relay rechazo la conexion (llave/red)"; exit 1 }
+    Write-Info "Relay propio activo: $Tunnel"
+}
+if ($Relay -eq "") {
 # --- Tunel TCP via Pinggy (tcp@free no pide auth, sin cuenta ni email) ---
 # --- Fallback: bore (binario unico, sin cuenta) si Pinggy rechaza ---
 $logOut = Join-Path $env:TEMP "ot_pinggy.out.log"
@@ -260,6 +290,7 @@ if ([string]::IsNullOrEmpty($Tunnel)) {
         if ($Tunnel -ne "") { Write-Info "Tunnel ready via bore: $Tunnel" }
     }
 }
+} # fin if ($Relay -eq ""): bloque Pinggy/bore
 
 if ([string]::IsNullOrEmpty($Tunnel)) {
     Write-ErrMsg "No se pudo establecer el tunel (Pinggy y bore fallaron)"
