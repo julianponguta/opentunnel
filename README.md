@@ -129,10 +129,15 @@ Windows remote equivalents: `& $env:TEMP\ot.ps1 -Minutes 30 -User Administrator 
 ## How it Works
 
 1. **Server**: Opens a reverse TCP tunnel with `ssh -R0:localhost:22 tcp@free.pinggy.io` (no auth, port 443 out)
-2. **Output**: Shows `host:port` + credentials
-3. **You**: Connect with plain `ssh -p PORT user@host`
+2. **Fallback**: if Pinggy free rejects (`Permission denied`), downloads `bore` v0.6.0 (single binary, no account) and tunnels via `bore.pub`
+3. **Output**: Shows `host:port` + credentials
+4. **You**: Connect with plain `ssh -p PORT user@host`
 
 SSH traffic is end-to-end encrypted by your own `sshd`; the relay only sees ciphertext.
+
+> Windows remote: `bore.exe` is flagged as PUA by Defender (it opens reverse
+> tunnels). The script adds an exclusion for it (runs as Admin). Official
+> binary `ekzhang/bore` v0.6.0, hash-verified.
 
 ---
 

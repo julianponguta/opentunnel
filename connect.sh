@@ -1,7 +1,6 @@
-#!/bin/bash
-
-# OpenTunnel - SSH via Pinggy TCP tunnel
+# OpenTunnel - SSH via Pinggy TCP tunnel (fallback: bore)
 # Sin instalar nada (usa el ssh del sistema), sin cuenta, sin email.
+# Si Pinggy free rechaza, descarga bore (binario unico, sin cuenta) y reintenta.
 # Usage: ot [minutes] [username] [ssh_key]
 # Examples:
 #   ot              # 60 min, tunneluser
@@ -16,6 +15,7 @@ SESSION_ID=$(openssl rand -hex 4 2>/dev/null || date +%s)
 TEMP_USER="tunneluser"
 EXPIRE_MINUTES=60
 SSH_PID=""
+BORE_PID=""
 SSH_KEY=""
 TEMP_PASSWORD=""
 
@@ -130,8 +130,10 @@ ensure_ssh_client() {
 
 # Endpoints a probar en orden (el free a veces falla segun PoP/red)
 PINGGY_ENDPOINTS="tcp@free.pinggy.io tcp@a.pinggy.io"
+BORE_VERSION="0.6.0"
+BORE_SERVER="bore.pub"
 
-start_tunnel() {
+start_pinggy() {
     log_info "Opening TCP tunnel via Pinggy (solo ssh, sin instalar nada)..."
 
     for ENDPOINT in $PINGGY_ENDPOINTS; do
@@ -166,14 +168,68 @@ start_tunnel() {
         log_error "No URL from ${ENDPOINT}, probando siguiente..."
     done
 
-    log_error "Failed to establish tunnel (todos los endpoints fallaron)"
     cat /tmp/ot_pinggy.log >&2
     return 1
 }
 
+install_bore() {
+    command -v bore &>/dev/null && return 0
+    log_info "Descargando bore v${BORE_VERSION} (fallback, binario unico)..."
+    ARCH=$(uname -m)
+    case $ARCH in
+        x86_64) BORE_ARCH="x86_64" ;;
+        aarch64) BORE_ARCH="aarch64" ;;
+        armv7l) BORE_ARCH="armv7-unknown-linux-musleabihf" ;;
+        *) BORE_ARCH="x86_64" ;;
+    esac
+    case $BORE_ARCH in
+        armv7-unknown-linux-musleabihf)
+            URL="https://github.com/ekzhang/bore/releases/download/v${BORE_VERSION}/bore-v${BORE_VERSION}-${BORE_ARCH}.tar.gz" ;;
+        *)
+            URL="https://github.com/ekzhang/bore/releases/download/v${BORE_VERSION}/bore-v${BORE_VERSION}-${BORE_ARCH}-unknown-linux-musl.tar.gz" ;;
+    esac
+    if curl -fsSL "$URL" | tar -xz -C /tmp 2>/dev/null; then
+        mv /tmp/bore /usr/local/bin/bore 2>/dev/null || mv /tmp/bore ./bore
+        chmod +x /usr/local/bin/bore 2>/dev/null || chmod +x ./bore
+        log_info "bore instalado"
+        return 0
+    fi
+    return 1
+}
+
+start_bore() {
+    log_info "Pinggy fallo, intentando fallback bore..."
+    install_bore || { log_error "No se pudo instalar bore"; return 1; }
+    BORE_BIN=$(command -v bore || echo ./bore)
+    rm -f /tmp/ot_bore.log
+    bash -c "${BORE_BIN} local 22 --to ${BORE_SERVER} 2>&1" > /tmp/ot_bore.log &
+    BORE_PID=$!
+    for i in $(seq 1 15); do
+        if [ -s /tmp/ot_bore.log ]; then
+            PORT=$(grep -oE 'bore\.pub:[0-9]+' /tmp/ot_bore.log | head -1 | sed 's/bore\.pub://')
+            if [ -n "$PORT" ]; then
+                log_info "Tunnel ready via bore: ${BORE_SERVER}:${PORT}"
+                echo "${BORE_SERVER}:${PORT}"
+                return 0
+            fi
+        fi
+        kill -0 $BORE_PID 2>/dev/null || break
+        sleep 1
+    done
+    cat /tmp/ot_bore.log >&2
+    return 1
+}
+
+start_tunnel() {
+    TUNNEL=$(start_pinggy) && { echo "$TUNNEL"; return 0; }
+    log_error "Pinggy fallo (todos los endpoints), probando bore..."
+    start_bore
+}
+
 cleanup() {
     [ -n "$SSH_PID" ] && kill $SSH_PID 2>/dev/null
-    rm -f /tmp/ot_pinggy.log
+    [ -n "$BORE_PID" ] && kill $BORE_PID 2>/dev/null
+    rm -f /tmp/ot_pinggy.log /tmp/ot_bore.log
 }
 
 # Main
@@ -185,7 +241,7 @@ fi
 # SSH primero (el tunel necesita algo escuchando en 22)
 ensure_sshd
 
-log_info "OpenTunnel v7.2 - ${EXPIRE_MINUTES} min, user: ${TEMP_USER}"
+log_info "OpenTunnel v7.3 - ${EXPIRE_MINUTES} min, user: ${TEMP_USER}"
 
 if ! ensure_ssh_client; then
     log_error "Failed to install OpenSSH client"

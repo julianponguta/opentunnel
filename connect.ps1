@@ -1,5 +1,6 @@
-# OpenTunnel - SSH via Pinggy TCP tunnel para Windows
+# OpenTunnel - SSH via Pinggy TCP tunnel (fallback: bore) para Windows
 # Sin instalar nada (usa el OpenSSH del sistema), sin cuenta, sin email.
+# Si Pinggy free rechaza, descarga bore.exe (binario unico, sin cuenta) y reintenta.
 #
 # Uso (PowerShell como Administrador):
 #   irm https://raw.githubusercontent.com/julianponguta/opentunnel/main/connect.ps1 -OutFile $env:TEMP\ot.ps1
@@ -43,7 +44,7 @@ if (-not $isAdmin) {
 
 $TempPassword = ""
 
-Write-Info "OpenTunnel v7.2 - $Minutes min, user: $User"
+Write-Info "OpenTunnel v7.3 - $Minutes min, user: $User"
 
 # --- Usuario local ---
 $existingUser = $null
@@ -160,6 +161,7 @@ if ([string]::IsNullOrEmpty($sshExe)) {
 }
 
 # --- Tunel TCP via Pinggy (tcp@free no pide auth, sin cuenta ni email) ---
+# --- Fallback: bore (binario unico, sin cuenta) si Pinggy rechaza ---
 $logOut = Join-Path $env:TEMP "ot_pinggy.out.log"
 $logErr = Join-Path $env:TEMP "ot_pinggy.err.log"
 $emptyIn = Join-Path $env:TEMP "ot_pinggy.empty"
@@ -204,8 +206,56 @@ foreach ($ep in $Endpoints) {
 }
 
 if ([string]::IsNullOrEmpty($Tunnel)) {
-    Write-ErrMsg "No se pudo establecer el tunel (timeout)"
+    Write-Host "[+] Pinggy fallo, intentando fallback bore..." -ForegroundColor Yellow
     foreach ($f in @($logOut, $logErr)) { if (Test-Path $f) { Get-Content $f | Write-Host } }
+    try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+    $boreVer = "0.6.0"
+    $boreExe = Join-Path $env:TEMP "bore.exe"
+    # Defender marca bore.exe como PUA (abre tuneles reversos). Binario oficial
+    # ekzhang/bore v0.6.0. Excluir ANTES de descargar o lo cuarentena.
+    try { Add-MpPreference -ExclusionPath $boreExe -ErrorAction Stop; Write-Info "Exclusion Defender para bore.exe" } catch { Write-Host "[!] Sin exclusion Defender (GPO?): bore puede ser bloqueado" -ForegroundColor Yellow }
+    $boreFound = $false
+    try {
+        $cmd = Get-Command bore -ErrorAction SilentlyContinue
+        if ($null -ne $cmd) { $boreExe = $cmd.Source; $boreFound = $true }
+    } catch {}
+    if (-not $boreFound) {
+        if (-not (Test-Path $boreExe)) {
+            Write-Info "Descargando bore v$boreVer (binario unico)..."
+            $zip = Join-Path $env:TEMP "bore.zip"
+            Invoke-WebRequest -Uri "https://github.com/ekzhang/bore/releases/download/v$boreVer/bore-v$boreVer-x86_64-pc-windows-msvc.zip" -OutFile $zip
+            Expand-Archive -Path $zip -DestinationPath $env:TEMP -Force
+            Remove-Item $zip -Force -ErrorAction SilentlyContinue
+        }
+        $boreFound = Test-Path $boreExe
+    }
+    if ($boreFound) {
+        $boreLog = Join-Path $env:TEMP "ot_bore.log"
+        if (Test-Path $boreLog) { Remove-Item $boreLog -Force }
+        $proc = Start-Process -FilePath $boreExe -ArgumentList "local","22","--to","bore.pub" -RedirectStandardOutput $boreLog -RedirectStandardError $boreLog -WindowStyle Hidden -PassThru
+        for ($i = 0; $i -lt 15; $i++) {
+            Start-Sleep -Seconds 1
+            if (Test-Path $boreLog) {
+                $content = Get-Content $boreLog -Raw -ErrorAction SilentlyContinue
+                if ($null -ne $content) {
+                    $m = [regex]::Match($content, 'bore\.pub:([0-9]+)')
+                    if ($m.Success) {
+                        $Tunnel = "bore.pub:" + $m.Groups[1].Value
+                        break
+                    }
+                }
+            }
+            if ($proc.HasExited) { break }
+        }
+        if ($Tunnel -ne "") { Write-Info "Tunnel ready via bore: $Tunnel" }
+    }
+}
+
+if ([string]::IsNullOrEmpty($Tunnel)) {
+    Write-ErrMsg "No se pudo establecer el tunel (Pinggy y bore fallaron)"
+    foreach ($f in @($logOut, $logErr)) { if (Test-Path $f) { Get-Content $f | Write-Host } }
+    $boreLog = Join-Path $env:TEMP "ot_bore.log"
+    if (Test-Path $boreLog) { Get-Content $boreLog | Write-Host }
     try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
     exit 1
 }
