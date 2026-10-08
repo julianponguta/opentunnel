@@ -44,7 +44,7 @@ if (-not $isAdmin) {
 
 $TempPassword = ""
 
-Write-Info "OpenTunnel v7.3 - $Minutes min, user: $User"
+Write-Info "OpenTunnel v7.4 - $Minutes min, user: $User"
 
 # --- Usuario local ---
 $existingUser = $null
@@ -120,10 +120,17 @@ if ($SshKey -ne "") {
     $sshDir = Join-Path $userProfile ".ssh"
     New-Item -ItemType Directory -Path $sshDir -Force | Out-Null
     $authKeys = Join-Path $sshDir "authorized_keys"
+    # El archivo puede existir con ACLs solo-sshd (heredado de corrida previa).
+    # Tomar posesion primero para poder leer/escribir.
+    if (Test-Path $authKeys) {
+        try { takeown /F $authKeys /A | Out-Null } catch {}
+        try { icacls $authKeys /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F" | Out-Null } catch {}
+    }
     $existing = ""
-    if (Test-Path $authKeys) { $existing = Get-Content $authKeys -Raw }
+    try { if (Test-Path $authKeys) { $existing = Get-Content $authKeys -Raw -ErrorAction Stop } } catch { $existing = "" }
     if ($existing -notmatch [regex]::Escape($SshKey)) {
-        Add-Content -Path $authKeys -Value $SshKey -Encoding ASCII
+        try { Add-Content -Path $authKeys -Value $SshKey -Encoding ASCII -ErrorAction Stop }
+        catch { Set-Content -Path $authKeys -Value ($existing + "`r`n" + $SshKey) -Encoding ASCII -Force }
     }
 
     # Si es admin, Windows exige tambien administrators_authorized_keys
@@ -135,10 +142,12 @@ if ($SshKey -ne "") {
 
     if ($isTargetAdmin) {
         $adminKeys = "$env:ProgramData\ssh\administrators_authorized_keys"
+        try { takeown /F $adminKeys /A | Out-Null } catch {}
         $adminExisting = ""
-        if (Test-Path $adminKeys) { $adminExisting = Get-Content $adminKeys -Raw }
+        try { if (Test-Path $adminKeys) { $adminExisting = Get-Content $adminKeys -Raw -ErrorAction Stop } } catch { $adminExisting = "" }
         if ($adminExisting -notmatch [regex]::Escape($SshKey)) {
-            Add-Content -Path $adminKeys -Value $SshKey -Encoding ASCII
+            try { Add-Content -Path $adminKeys -Value $SshKey -Encoding ASCII -ErrorAction Stop }
+            catch { Set-Content -Path $adminKeys -Value ($adminExisting + "`r`n" + $SshKey) -Encoding ASCII -Force }
         }
         icacls $adminKeys /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F" | Out-Null
     }
