@@ -44,7 +44,7 @@ if (-not $isAdmin) {
 
 $TempPassword = ""
 
-Write-Info "OpenTunnel v7.4 - $Minutes min, user: $User"
+Write-Info "OpenTunnel v7.5 - $Minutes min, user: $User"
 
 # --- Usuario local ---
 $existingUser = $null
@@ -241,7 +241,8 @@ if ([string]::IsNullOrEmpty($Tunnel)) {
     if ($boreFound) {
         $boreLog = Join-Path $env:TEMP "ot_bore.log"
         if (Test-Path $boreLog) { Remove-Item $boreLog -Force }
-        $proc = Start-Process -FilePath $boreExe -ArgumentList "local","22","--to","bore.pub" -RedirectStandardOutput $boreLog -RedirectStandardError $boreLog -WindowStyle Hidden -PassThru
+        # PowerShell no permite mismo archivo en stdout+stderr: solo stdout (bore escribe ahi).
+        $proc = Start-Process -FilePath $boreExe -ArgumentList "local","22","--to","bore.pub" -RedirectStandardOutput $boreLog -WindowStyle Hidden -PassThru
         for ($i = 0; $i -lt 15; $i++) {
             Start-Sleep -Seconds 1
             if (Test-Path $boreLog) {
