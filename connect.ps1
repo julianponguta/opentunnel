@@ -23,6 +23,13 @@ $ErrorActionPreference = "Stop"
 function Write-Info($msg) { Write-Host "[+] $msg" -ForegroundColor Green }
 function Write-ErrMsg($msg) { Write-Host "[x] $msg" -ForegroundColor Red }
 
+# Grupos por SID (Windows en cualquier idioma: Administrators=Administradores, Users=Usuarios, ...)
+$AdminsSid = "*S-1-5-32-544"
+function Invoke-SafeIcacls([string[]]$IcArgs) {
+    try { & icacls @IcArgs 2>$null | Out-Null } catch {}
+    $global:LASTEXITCODE = 0
+}
+
 # --- Soporte de args flexibles ---
 foreach ($a in $args) {
     if ($a -match '^ssh-') { $SshKey = "$a" }
@@ -46,8 +53,7 @@ if (-not $isAdmin) {
 }
 
 $TempPassword = ""
-
-Write-Info "OpenTunnel v7.6 - $Minutes min, user: $User"
+Write-Info "OpenTunnel v7.7 - $Minutes min, user: $User"
 
 # --- Usuario local ---
 $existingUser = $null
@@ -61,7 +67,7 @@ if ([string]::IsNullOrEmpty($SshKey)) {
         $TempPassword = -join ($chars | Get-Random -Count 16 | ForEach-Object { [char]$_ })
         $secPass = ConvertTo-SecureString $TempPassword -AsPlainText -Force
         New-LocalUser -Name $User -Password $secPass -FullName "OpenTunnel temp user" -Description "Temporary user by OpenTunnel" | Out-Null
-        Add-LocalGroupMember -Group "Users" -Member $User -ErrorAction SilentlyContinue
+        Add-LocalGroupMember -Group "S-1-5-32-545" -Member $User -ErrorAction SilentlyContinue
         Write-Info "Usuario temporal $User creado con contrasena"
     }
 } else {
@@ -69,7 +75,7 @@ if ([string]::IsNullOrEmpty($SshKey)) {
         $randPass = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 24 | ForEach-Object { [char]$_ })
         $secPass = ConvertTo-SecureString $randPass -AsPlainText -Force
         New-LocalUser -Name $User -Password $secPass -FullName "OpenTunnel temp user" -Description "Temporary user by OpenTunnel" | Out-Null
-        Add-LocalGroupMember -Group "Users" -Member $User -ErrorAction SilentlyContinue
+        Add-LocalGroupMember -Group "S-1-5-32-545" -Member $User -ErrorAction SilentlyContinue
         Write-Info "Usuario $User creado"
     }
 }
@@ -127,7 +133,7 @@ if ($SshKey -ne "") {
     # Tomar posesion primero para poder leer/escribir.
     if (Test-Path $authKeys) {
         try { takeown /F $authKeys /A | Out-Null } catch {}
-        try { icacls $authKeys /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F" | Out-Null } catch {}
+        Invoke-SafeIcacls @($authKeys, "/inheritance:r", "/grant", "${AdminsSid}:F", "/grant", "SYSTEM:F")
     }
     $existing = ""
     try { if (Test-Path $authKeys) { $existing = Get-Content $authKeys -Raw -ErrorAction Stop } } catch { $existing = "" }
@@ -139,7 +145,8 @@ if ($SshKey -ne "") {
     # Si es admin, Windows exige tambien administrators_authorized_keys
     $isTargetAdmin = $false
     try {
-        $members = Get-LocalGroupMember -Group "Administrators" -ErrorAction Stop | ForEach-Object { $_.Name }
+        $adminGroupName = (Get-LocalGroup -SID "S-1-5-32-544" -ErrorAction Stop).Name
+        $members = Get-LocalGroupMember -Group $adminGroupName -ErrorAction Stop | ForEach-Object { $_.Name }
         foreach ($m in $members) { if ($m -like "*\$User" -or $m -eq $User) { $isTargetAdmin = $true } }
     } catch { $isTargetAdmin = $false }
 
@@ -152,10 +159,11 @@ if ($SshKey -ne "") {
             try { Add-Content -Path $adminKeys -Value $SshKey -Encoding ASCII -ErrorAction Stop }
             catch { Set-Content -Path $adminKeys -Value ($adminExisting + "`r`n" + $SshKey) -Encoding ASCII -Force }
         }
-        icacls $adminKeys /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F" | Out-Null
+        Invoke-SafeIcacls @($adminKeys, "/inheritance:r", "/grant", "${AdminsSid}:F", "/grant", "SYSTEM:F")
     }
 
-    icacls $sshDir /inheritance:r /grant:r "$($User):(OI)(CI)F" /grant "SYSTEM:F" /grant "Administrators:F" 2>$null | Out-Null
+    $userGrant = "${env:COMPUTERNAME}\${User}:(OI)(CI)F"
+    Invoke-SafeIcacls @($sshDir, "/inheritance:r", "/grant:r", $userGrant, "/grant", "SYSTEM:F", "/grant", "${AdminsSid}:F")
     Write-Info "Llave SSH agregada para $User (sin comentario/email)"
 }
 
