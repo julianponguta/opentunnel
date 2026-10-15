@@ -147,7 +147,7 @@ if ($SshKey -ne "") {
     try {
         $adminGroupName = (Get-LocalGroup -SID "S-1-5-32-544" -ErrorAction Stop).Name
         $members = Get-LocalGroupMember -Group $adminGroupName -ErrorAction Stop | ForEach-Object { $_.Name }
-        foreach ($m in $members) { if ($m -like "*\$User" -or $m -eq $User) { $isTargetAdmin = $true } }
+        foreach ($m in $members) { if (($m -like "*\$User") -or ($m -eq $User)) { $isTargetAdmin = $true } }
     } catch { $isTargetAdmin = $false }
 
     if ($isTargetAdmin) {
