@@ -141,6 +141,54 @@ SSH traffic is end-to-end encrypted by your own `sshd`; the relay only sees ciph
 
 ---
 
+## otd — relay without account or expiry (Portal)
+
+`cmd/otd` is the remote-side agent that replaces Pinggy and bore: it exposes the
+machine's SSH port through the [Portal](https://github.com/gosuda/portal-tunnel)
+relay network. No account, no card, no 60-minute timeout.
+
+```bash
+go build -o otd ./cmd/otd
+./otd                  # exposes 127.0.0.1:22
+./otd -port 22 -v      # -port, -timeout, -no-health-check, -portal <path>
+```
+
+Prebuilt binaries (committed under `dist/`), Linux x86-64/ARM64 and Windows x64:
+
+```bash
+# Linux remote
+curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/dist/otd-linux-amd64 -o /tmp/otd \
+  && chmod +x /tmp/otd && /tmp/otd
+```
+```powershell
+# Windows remote
+iwr https://raw.githubusercontent.com/julianponguta/opentunnel/main/dist/otd-windows-amd64.exe -OutFile $env:TEMP\otd.exe
+Unblock-File $env:TEMP\otd.exe; & $env:TEMP\otd.exe
+```
+
+No root needed: `otd` only dials `127.0.0.1:22`, it never binds port 22. `sshd`
+still has to be running (use `connect.sh`/`connect.ps1 -Minutes` for user and
+sshd setup if the box is fresh).
+
+On first run it downloads the `portal` v2.7.4 binary into the user cache. The
+agent announces one `tcp_addr` per relay in the public registry; **otd prints only
+an endpoint that completes a TCP dial *and* answers with an SSH banner**, so a
+dead relay or a cold `sshd` never reaches you:
+
+```
+[otd] descartado <id>.gosunuts.xyz:40006: dial tcp ...: i/o timeout
+Tunnel: <id>.s-h.day:50003
+```
+
+Paste that `host:port` into `opentunnel.exe` as usual — the local side is still
+plain `ssh`.
+
+Measured from this repo's machine: 23 MB download, ~20-30 s to a validated
+endpoint, one of the two registry relays (`gosunuts.xyz`) consistently dead, and
+the public hostname stays stable per device while the port changes between runs.
+
+---
+
 ## Limits
 
 - Free tunnels expire after 60 minutes and get a random address each time.

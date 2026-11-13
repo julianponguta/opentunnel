@@ -1,2 +1,6 @@
 .ot_relay*
 check-ps1.ps1
+
+# build artifacts
+/otd
+/otd.exe
