@@ -21,6 +21,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -29,6 +30,9 @@ const portalVersion = "v2.7.4"
 var (
 	// tcp_addr=ot-a1b2-f012d64d....s-h.day:50003
 	tcpAddrRE = regexp.MustCompile(`tcp_addr=([A-Za-z0-9][A-Za-z0-9._-]*:[0-9]{1,5})`)
+	// portal colorizes its log on Linux (`ESC[36mtcp_addr=ESC[0m...`), which breaks
+	// the literal match; Windows output is plain.
+	ansiRE = regexp.MustCompile("\\x1b\\[[0-9;]*m")
 )
 
 func logf(format string, a ...any) {
@@ -50,13 +54,17 @@ func main() {
 }
 
 func run(port int, portalBin string, timeout time.Duration, noCheck, verbose bool) error {
-	bin, err := ensurePortal(portalBin)
+	bin, workDir, err := ensurePortal(portalBin)
 	if err != nil {
 		return err
 	}
 	logf("portal %s, exponiendo 127.0.0.1:%d", portalVersion, port)
 
 	cmd := exec.Command(bin, "expose", fmt.Sprintf("127.0.0.1:%d", port), "--tcp")
+	// portal writes identity.json (its device key, which also seeds the stable
+	// public hostname) into the working directory. Keep it in the cache, never
+	// in whatever directory the operator happened to be in.
+	cmd.Dir = workDir
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -70,7 +78,7 @@ func run(port int, portalBin string, timeout time.Duration, noCheck, verbose boo
 	}
 
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
 	printed := make(chan struct{})
 	var once sync.Once
@@ -113,7 +121,7 @@ func scanAddrs(r io.Reader, noCheck, verbose bool, once *sync.Once, printed chan
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for sc.Scan() {
-		line := sc.Text()
+		line := ansiRE.ReplaceAllString(sc.Text(), "")
 		if verbose {
 			logf("%s", line)
 		}
@@ -170,25 +178,25 @@ func sshReady(addr string, d time.Duration) error {
 	return nil
 }
 
-func ensurePortal(override string) (string, error) {
-	if override != "" {
-		return override, nil
-	}
+func ensurePortal(override string) (bin, workDir string, err error) {
 	dir, err := os.UserCacheDir()
 	if err != nil {
 		dir = os.TempDir()
 	}
 	dir = filepath.Join(dir, "opentunnel")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", "", err
+	}
+	if override != "" {
+		return override, dir, nil
+	}
 	ext := ""
 	if runtime.GOOS == "windows" {
 		ext = ".exe"
 	}
 	dst := filepath.Join(dir, fmt.Sprintf("portal-%s-%s-%s%s", portalVersion, runtime.GOOS, runtime.GOARCH, ext))
 	if st, err := os.Stat(dst); err == nil && st.Size() > 1<<20 {
-		return dst, nil
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
+		return dst, dir, nil
 	}
 	url := fmt.Sprintf("https://github.com/gosuda/portal-tunnel/releases/download/%s/portal-%s-%s%s",
 		portalVersion, runtime.GOOS, runtime.GOARCH, ext)
@@ -196,30 +204,30 @@ func ensurePortal(override string) (string, error) {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("descarga falló: HTTP %d", resp.StatusCode)
+		return "", "", fmt.Errorf("descarga falló: HTTP %d", resp.StatusCode)
 	}
 	tmp := dst + ".part"
 	f, err := os.Create(tmp)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if _, err := io.Copy(f, resp.Body); err != nil {
 		f.Close()
 		os.Remove(tmp)
-		return "", err
+		return "", "", err
 	}
 	if err := f.Close(); err != nil {
-		return "", err
+		return "", "", err
 	}
 	if err := os.Chmod(tmp, 0o755); err != nil && runtime.GOOS != "windows" {
-		return "", err
+		return "", "", err
 	}
 	if err := os.Rename(tmp, dst); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return dst, nil
+	return dst, dir, nil
 }
