@@ -166,9 +166,30 @@ iwr https://raw.githubusercontent.com/julianponguta/opentunnel/main/dist/otd-win
 Unblock-File $env:TEMP\otd.exe; & $env:TEMP\otd.exe
 ```
 
-No root needed: `otd` only dials `127.0.0.1:22`, it never binds port 22. `sshd`
-still has to be running (use `connect.sh`/`connect.ps1 -Minutes` for user and
-sshd setup if the box is fresh).
+No root needed: `otd` only dials `127.0.0.1:22`, it never binds port 22.
+
+### No sshd on the box?
+
+`otd` exposes a port; something must answer on it.
+
+| situation | what to run |
+|---|---|
+| Linux/macOS with `sudo` | `connect.sh` (sets up user + `openssh-server`), or just `sudo apt install -y openssh-server` |
+| Windows **with** Administrator | `Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0; Start-Service sshd` |
+| **no admin at all** | `otd -shell` — SSH server embedded in the same process |
+
+```bash
+./otd -shell                                  # authorizes the current user's ~/.ssh/*.pub
+./otd -shell -authorized-key "ssh-ed25519 AAAA..."
+./otd -shell -authorized-key-file /path/authorized_keys
+```
+
+Embedded mode is key-only (no passwords), binds `127.0.0.1` on a random port,
+uses no PAM, installs nothing and runs with the caller's privileges. Fully
+non-interactive: `ssh -p PORT user@host "uname -a"`, exit codes included.
+There is **no PTY**, so an interactive `ssh -t` gets a piped shell without line
+editing or job control — use the system sshd path when a real terminal matters.
+
 
 On first run it downloads the `portal` v2.7.4 binary into the user cache. The
 agent announces one `tcp_addr` per relay in the public registry; **otd prints only

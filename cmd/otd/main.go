@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -45,15 +46,35 @@ func main() {
 	timeout := flag.Duration("timeout", 90*time.Second, "give up if no validated endpoint within this window")
 	noCheck := flag.Bool("no-health-check", false, "print the first announced endpoint without validating it")
 	verbose := flag.Bool("v", false, "stream relay output")
+	shellMode := flag.Bool("shell", false, "serve SSH from this process (no system sshd needed)")
+	authKey := flag.String("authorized-key", "", "public key allowed into the embedded server")
+	authKeyFile := flag.String("authorized-key-file", "", "file with authorized_keys for the embedded server")
 	flag.Parse()
 
-	if err := run(*port, *portalBin, *timeout, *noCheck, *verbose); err != nil {
+	localPort, user := *port, currentUser()
+	if *shellMode {
+		keys, err := loadKeys(*authKey, *authKeyFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[-] %v\n", err)
+			os.Exit(1)
+		}
+		addr, err := startEmbeddedSSH(keys)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[-] ssh embebido: %v\n", err)
+			os.Exit(1)
+		}
+		_, p, _ := net.SplitHostPort(addr)
+		localPort, _ = strconv.Atoi(p)
+		logf("ssh embebido en %s (sin sshd del sistema, solo con llave)", addr)
+	}
+
+	if err := run(localPort, user, *portalBin, *timeout, *noCheck, *verbose); err != nil {
 		fmt.Fprintf(os.Stderr, "[-] %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(port int, portalBin string, timeout time.Duration, noCheck, verbose bool) error {
+func run(port int, user, portalBin string, timeout time.Duration, noCheck, verbose bool) error {
 	bin, workDir, err := ensurePortal(portalBin)
 	if err != nil {
 		return err
@@ -80,12 +101,16 @@ func run(port int, portalBin string, timeout time.Duration, noCheck, verbose boo
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
 
-	printed := make(chan struct{})
+	published := make(chan struct{})
 	var once sync.Once
 	var scan sync.WaitGroup
+	publish := func(addr string) {
+		report(addr, user)
+		close(published)
+	}
 	scan.Add(2)
-	go scanAddrs(stdout, noCheck, verbose, &once, printed, &scan)
-	go scanAddrs(stderr, noCheck, verbose, &once, printed, &scan)
+	go scanAddrs(stdout, noCheck, verbose, &once, publish, &scan)
+	go scanAddrs(stderr, noCheck, verbose, &once, publish, &scan)
 
 	done := make(chan error, 1)
 	go func() {
@@ -95,20 +120,20 @@ func run(port int, portalBin string, timeout time.Duration, noCheck, verbose boo
 
 	// Keep the relay alive after publishing; a nil channel blocks forever.
 	deadline := time.After(timeout)
-	published := false
+	ok := false
 	for {
 		select {
 		case <-sig:
 			_ = cmd.Process.Kill()
 			return nil
 		case err := <-done:
-			if published {
+			if ok {
 				return fmt.Errorf("el relay terminó (%v); el endpoint quedó muerto", err)
 			}
 			return fmt.Errorf("el relay terminó sin endpoint válido (%v)", err)
-		case <-printed:
-			published = true
-			printed, deadline = nil, nil
+		case <-published:
+			ok = true
+			published, deadline = nil, nil
 		case <-deadline:
 			_ = cmd.Process.Kill()
 			return fmt.Errorf("sin endpoint validado tras %s", timeout)
@@ -116,7 +141,17 @@ func run(port int, portalBin string, timeout time.Duration, noCheck, verbose boo
 	}
 }
 
-func scanAddrs(r io.Reader, noCheck, verbose bool, once *sync.Once, printed chan struct{}, wg *sync.WaitGroup) {
+func currentUser() string {
+	if u := os.Getenv("USER"); u != "" {
+		return u
+	}
+	if u := os.Getenv("USERNAME"); u != "" {
+		return u
+	}
+	return "user"
+}
+
+func scanAddrs(r io.Reader, noCheck, verbose bool, once *sync.Once, printed func(string), wg *sync.WaitGroup) {
 	defer wg.Done()
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -136,14 +171,11 @@ func scanAddrs(r io.Reader, noCheck, verbose bool, once *sync.Once, printed chan
 				continue
 			}
 		}
-		once.Do(func() {
-			report(addr)
-			close(printed)
-		})
+		once.Do(func() { printed(addr) })
 	}
 }
 
-func report(addr string) {
+func report(addr, user string) {
 	host, p, _ := net.SplitHostPort(addr)
 	fmt.Println("========================================================")
 	fmt.Println("              CONNECTED")
@@ -152,7 +184,7 @@ func report(addr string) {
 	fmt.Printf("Tunnel: %s\n", addr)
 	fmt.Println()
 	fmt.Println("CONNECT FROM LOCAL (plain ssh, nada que instalar):")
-	fmt.Printf("  ssh -p %s <user>@%s\n", p, host)
+	fmt.Printf("  ssh -p %s %s@%s\n", p, user, host)
 	fmt.Println()
 	fmt.Println("Paste in opentunnel: " + addr)
 	fmt.Println("========================================================")
