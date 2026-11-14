@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -142,10 +143,21 @@ func run(port int, user, portalBin string, timeout time.Duration, noCheck, verbo
 }
 
 func currentUser() string {
-	if u := os.Getenv("USER"); u != "" {
-		return u
+	// os/user is the account name; the environment is unreliable: on Windows
+	// USER can hold the machine account ("DESKTOP-XXXX$"), not the login.
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		name := u.Username
+		if i := strings.LastIndexAny(name, `\`); i >= 0 {
+			name = name[i+1:]
+		}
+		return name
 	}
-	if u := os.Getenv("USERNAME"); u != "" {
+	if runtime.GOOS == "windows" {
+		if u := os.Getenv("USERNAME"); u != "" {
+			return u
+		}
+	}
+	if u := os.Getenv("USER"); u != "" {
 		return u
 	}
 	return "user"

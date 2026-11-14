@@ -187,8 +187,14 @@ No root needed: `otd` only dials `127.0.0.1:22`, it never binds port 22.
 Embedded mode is key-only (no passwords), binds `127.0.0.1` on a random port,
 uses no PAM, installs nothing and runs with the caller's privileges. Fully
 non-interactive: `ssh -p PORT user@host "uname -a"`, exit codes included.
-There is **no PTY**, so an interactive `ssh -t` gets a piped shell without line
-editing or job control — use the system sshd path when a real terminal matters.
+Two limits, both intentional:
+
+- **No PTY** — an interactive `ssh -t` gets a piped shell without line editing
+  or job control. Use the system sshd path when a real terminal matters.
+- **No stdin forwarding** — commands run with an empty stdin. Wiring the session
+  into `exec.Cmd.Stdin` leaves Go's stdin copier parked when the child exits
+  without reading, `Wait` expires on `WaitDelay`, the `exit-status` request then
+  fails with `EOF` and the client hangs until it times out.
 
 
 On first run it downloads the `portal` v2.7.4 binary into the user cache. The
