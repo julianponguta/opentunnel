@@ -150,7 +150,7 @@ relay network. No account, no card, no 60-minute timeout.
 ```bash
 go build -o otd ./cmd/otd
 ./otd                  # exposes 127.0.0.1:22
-./otd -port 22 -v      # -port, -timeout, -no-health-check, -portal <path>
+./otd -port 22 -v      # -port, -timeout, -no-health-check, -portal <path>, -out <file>
 ```
 
 Prebuilt binaries (committed under `dist/`), Linux x86-64/ARM64 and Windows x64:
@@ -183,6 +183,9 @@ No root needed: `otd` only dials `127.0.0.1:22`, it never binds port 22.
 ./otd -shell -authorized-key "ssh-ed25519 AAAA..."
 ./otd -shell -authorized-key-file /path/authorized_keys
 ```
+
+`-out FILE` writes the published `host:port` to a file, which is the only way to
+learn the address from a detached run (PowerShell window closed, scheduled task).
 
 Embedded mode is key-only (no passwords), binds `127.0.0.1` on a random port,
 uses no PAM, installs nothing and runs with the caller's privileges. Fully

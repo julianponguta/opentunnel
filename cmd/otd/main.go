@@ -53,6 +53,7 @@ func main() {
 	timeout := flag.Duration("timeout", 90*time.Second, "give up if no validated endpoint within this window")
 	noCheck := flag.Bool("no-health-check", false, "print the first announced endpoint without validating it")
 	verbose := flag.Bool("v", false, "stream relay output")
+	outFile := flag.String("out", "", "write the published host:port here (for detached runs)")
 	shellMode := flag.Bool("shell", false, "serve SSH from this process (no system sshd needed)")
 	authKey := flag.String("authorized-key", "", "public key allowed into the embedded server")
 	authKeyFile := flag.String("authorized-key-file", "", "file with authorized_keys for the embedded server")
@@ -76,13 +77,19 @@ func main() {
 		logf("ssh embebido en %s (sin sshd del sistema, solo con llave)", addr)
 	}
 
-	if err := run(localPort, user, *portalBin, *timeout, *noCheck, *verbose); err != nil {
+	// A detached run has no visible stdout: the address file is the only way to
+	// learn where to connect. Drop a stale one so nobody pastes a dead address.
+	if *outFile != "" {
+		_ = os.Remove(*outFile)
+	}
+
+	if err := run(localPort, user, *portalBin, *timeout, *noCheck, *verbose, *outFile); err != nil {
 		fmt.Fprintf(os.Stderr, "[-] %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(port int, user, portalBin string, timeout time.Duration, noCheck, verbose bool) error {
+func run(port int, user, portalBin string, timeout time.Duration, noCheck, verbose bool, outFile string) error {
 	bin, workDir, err := ensurePortal(portalBin)
 	if err != nil {
 		return err
@@ -114,6 +121,11 @@ func run(port int, user, portalBin string, timeout time.Duration, noCheck, verbo
 	var scan sync.WaitGroup
 	publish := func(addr string) {
 		report(addr, user)
+		if outFile != "" {
+			if err := os.WriteFile(outFile, []byte(addr+"\n"), 0o644); err != nil {
+				logf("no se pudo escribir %s: %v", outFile, err)
+			}
+		}
 		close(published)
 	}
 	scan.Add(2)
