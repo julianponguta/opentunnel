@@ -51,13 +51,12 @@ func startEmbeddedSSH(keys []gossh.PublicKey) (string, error) {
 }
 
 func handleSession(s ssh.Session) {
+	// RawCommand, not Command(): Command() shlex-splits the request, so quotes
+	// are gone by the time we rebuild it and `powershell -c "a | b"` reaches
+	// cmd.exe as `powershell -c a | b` (the pipe splits at cmd level).
 	var c *exec.Cmd
-	if args := s.Command(); len(args) > 0 {
-		if runtime.GOOS == "windows" {
-			c = exec.Command("cmd.exe", "/c", strings.Join(args, " "))
-		} else {
-			c = exec.Command("/bin/sh", "-c", strings.Join(args, " "))
-		}
+	if raw := strings.TrimSpace(s.RawCommand()); raw != "" {
+		c = shellCmd(raw)
 	} else {
 		c = exec.Command(defaultShell())
 	}
