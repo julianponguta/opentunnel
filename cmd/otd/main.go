@@ -27,7 +27,13 @@ import (
 	"time"
 )
 
-const portalVersion = "v2.7.4"
+const (
+	portalVersion = "v2.7.4"
+	// Bump on every behaviour change: the relay address and the printed block
+	// look identical across builds, and "which binary is on that box" has
+	// already cost a debugging round.
+	otdVersion = "2026-11-14a"
+)
 
 var (
 	// tcp_addr=ot-a1b2-f012d64d....s-h.day:50003
@@ -51,6 +57,7 @@ func main() {
 	authKey := flag.String("authorized-key", "", "public key allowed into the embedded server")
 	authKeyFile := flag.String("authorized-key-file", "", "file with authorized_keys for the embedded server")
 	flag.Parse()
+	logf("otd %s", otdVersion)
 
 	localPort, user := *port, currentUser()
 	if *shellMode {
@@ -149,6 +156,12 @@ func currentUser() string {
 		name := u.Username
 		if i := strings.LastIndexAny(name, `\`); i >= 0 {
 			name = name[i+1:]
+		}
+		// A trailing $ is the machine account: that is what SYSTEM resolves to on
+		// Windows (launching from a service context does it). -shell ignores the
+		// username anyway, but "DESKTOP-X$@" is not paste-safe in a shell.
+		if strings.HasSuffix(name, "$") {
+			return "system"
 		}
 		return name
 	}
