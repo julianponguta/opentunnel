@@ -53,7 +53,8 @@ func main() {
 	timeout := flag.Duration("timeout", 90*time.Second, "give up if no validated endpoint within this window")
 	noCheck := flag.Bool("no-health-check", false, "print the first announced endpoint without validating it")
 	verbose := flag.Bool("v", false, "stream relay output")
-	outFile := flag.String("out", "", "write the published host:port here (for detached runs)")
+	outFile := flag.String("out", "", "write the published host:port here (required with -detach)")
+	detach := flag.Bool("detach", false, "run the tunnel in its own process, print the address and exit")
 	shellMode := flag.Bool("shell", false, "serve SSH from this process (no system sshd needed)")
 	authKey := flag.String("authorized-key", "", "public key allowed into the embedded server")
 	authKeyFile := flag.String("authorized-key-file", "", "file with authorized_keys for the embedded server")
@@ -81,6 +82,14 @@ func main() {
 	// learn where to connect. Drop a stale one so nobody pastes a dead address.
 	if *outFile != "" {
 		_ = os.Remove(*outFile)
+	}
+
+	if *detach {
+		if err := runDetached(*outFile, *timeout); err != nil {
+			fmt.Fprintf(os.Stderr, "[-] %v\n", err)
+			os.Exit(1)
+		}
+		return
 	}
 
 	if err := run(localPort, user, *portalBin, *timeout, *noCheck, *verbose, *outFile); err != nil {

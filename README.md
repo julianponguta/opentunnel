@@ -184,8 +184,10 @@ No root needed: `otd` only dials `127.0.0.1:22`, it never binds port 22.
 ./otd -shell -authorized-key-file /path/authorized_keys
 ```
 
-`-out FILE` writes the published `host:port` to a file, which is the only way to
-learn the address from a detached run (PowerShell window closed, scheduled task).
+`-detach` re-launches the tunnel in its own process (no console on Windows,
+new session on Unix), waits for the address and prints it, so one command both
+backgrounds it and tells you where to connect. `-out FILE` writes the published
+`host:port` to a file, which is how a detached run reports the address.
 
 Embedded mode is key-only (no passwords), binds `127.0.0.1` on a random port,
 uses no PAM, installs nothing and runs with the caller's privileges. Fully
