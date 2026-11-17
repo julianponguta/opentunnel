@@ -143,68 +143,106 @@ SSH traffic is end-to-end encrypted by your own `sshd`; the relay only sees ciph
 
 ## otd — relay without account or expiry (Portal)
 
-`cmd/otd` is the remote-side agent that replaces Pinggy and bore: it exposes the
-machine's SSH port through the [Portal](https://github.com/gosuda/portal-tunnel)
-relay network. No account, no card, no 60-minute timeout.
+`cmd/otd` is the remote-side agent that replaces Pinggy and bore: it exposes a
+port through the [Portal](https://github.com/gosuda/portal-tunnel) relay network.
+No account, no card, no 60-minute timeout. With `-shell` it also brings its own
+SSH server, so the remote needs nothing installed and no administrator rights.
 
-```bash
-go build -o otd ./cmd/otd
-./otd                  # exposes 127.0.0.1:22
-./otd -port 22 -v      # -port, -timeout, -no-health-check, -portal <path>, -out <file>
+Everything below authorizes this public key (the private half never leaves your
+machine — a public key in a repo is not a secret):
+
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h anon
 ```
 
-Prebuilt binaries (committed under `dist/`), Linux x86-64/ARM64 and Windows x64:
+### Quick start — Windows remote, no Administrator
 
-```bash
-# Linux remote
-curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/dist/otd-linux-amd64 -o /tmp/otd \
-  && chmod +x /tmp/otd && /tmp/otd
-```
 ```powershell
-# Windows remote
-iwr https://raw.githubusercontent.com/julianponguta/opentunnel/main/dist/otd-windows-amd64.exe -OutFile $env:TEMP\otd.exe
-Unblock-File $env:TEMP\otd.exe; & $env:TEMP\otd.exe
+mkdir C:\otd -Force
+iwr https://raw.githubusercontent.com/julianponguta/opentunnel/main/dist/otd-windows-amd64.exe -OutFile C:\otd\otd.exe
+Unblock-File C:\otd\otd.exe
+C:\otd\otd.exe -shell -detach -authorized-key "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h anon" -out C:\otd\addr.txt
 ```
 
-No root needed: `otd` only dials `127.0.0.1:22`, it never binds port 22.
+Prints the address and returns to the prompt; the tunnel keeps running after the
+window is closed (own process, no console):
+
+```
+4f2c9a1e8b7d6c5a4f3e2d1c0b9a8f7e6d5c4b3a.s-h.day:50007
+[otd] en segundo plano (pid 4128), log: C:\otd\addr.txt.log
+```
+
+### Quick start — Linux remote, no sudo
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/julianponguta/opentunnel/main/dist/otd-linux-amd64 -o /tmp/otd
+chmod +x /tmp/otd
+/tmp/otd -shell -detach -authorized-key "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFzn4bIIjxL+VO6WCjrvF+rxt3LVi4s4X57ZwP4wnG1h anon" -out /tmp/otd.addr
+```
+
+ARM64 servers: `otd-linux-arm64`.
+
+### Connect from your machine
+
+```powershell
+$h, $p = "4f2c9a1e8b7d6c5a4f3e2d1c0b9a8f7e6d5c4b3a.s-h.day:50007".Split(':')
+ssh -i "$env:USERPROFILE\.ssh\id_ed25519" -o StrictHostKeyChecking=no -o UserKnownHostsFile=NUL -p $p probe@$h "hostname && whoami"
+```
+
+The username is irrelevant in embedded mode (the key is the credential), and the
+command line reaches `cmd.exe` / `sh` verbatim, so pipes and quotes work:
+
+```powershell
+... -p $p probe@$h 'powershell -NoProfile -Command "(Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory"'
+```
+
+Handy wrapper:
+
+```powershell
+function otc { param([string]$Addr,[string]$Cmd="hostname && whoami")
+  $h,$p = $Addr -split ':'
+  ssh -i "$env:USERPROFILE\.ssh\id_ed25519" -o StrictHostKeyChecking=no -o UserKnownHostsFile=NUL -p $p probe@$h $Cmd }
+```
+
+Stop the tunnel with `Stop-Process -Name otd` (Windows) or `pkill -x otd` (Linux).
+
+### If the box already has sshd
+
+Drop `-shell` and the key — `otd` just relays `127.0.0.1:22`:
+
+```powershell
+C:\otd\otd.exe -detach -out C:\otd\addr.txt
+```
+
+No root needed either way: `otd` never binds port 22, it only dials it.
 
 ### No sshd on the box?
 
-`otd` exposes a port; something must answer on it.
-
 | situation | what to run |
 |---|---|
-| Linux/macOS with `sudo` | `connect.sh` (sets up user + `openssh-server`), or just `sudo apt install -y openssh-server` |
+| Linux/macOS with `sudo` | `connect.sh` (creates user + `openssh-server`), or `sudo apt install -y openssh-server` |
 | Windows **with** Administrator | `Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0; Start-Service sshd` |
-| **no admin at all** | `otd -shell` — SSH server embedded in the same process |
+| **no admin at all** | `otd -shell` (embedded server, what the quick starts use) |
 
-```bash
-./otd -shell                                  # authorizes the current user's ~/.ssh/*.pub
-./otd -shell -authorized-key "ssh-ed25519 AAAA..."
-./otd -shell -authorized-key-file /path/authorized_keys
-```
+### Flags
 
-`-detach` re-launches the tunnel in its own process (no console on Windows,
-new session on Unix), waits for the address and prints it, so one command both
-backgrounds it and tells you where to connect. `-out FILE` writes the published
-`host:port` to a file, which is how a detached run reports the address.
+| flag | meaning |
+|---|---|
+| `-port N` | local port to expose (default 22) |
+| `-shell` | run an embedded SSH server instead of using the system sshd |
+| `-authorized-key K` | public key allowed into the embedded server (or `-authorized-key-file`) |
+| `-detach` | re-exec in its own process, print the address, return |
+| `-out FILE` | file that receives the published `host:port` (removed at startup) |
+| `-timeout D` | how long to wait for a validated endpoint (default 90s) |
+| `-no-health-check` | publish the first announced endpoint without validating it |
+| `-portal PATH` | reuse an existing `portal` binary instead of downloading |
+| `-v` | stream the relay's output |
 
-Embedded mode is key-only (no passwords), binds `127.0.0.1` on a random port,
-uses no PAM, installs nothing and runs with the caller's privileges. Fully
-non-interactive: `ssh -p PORT user@host "uname -a"`, exit codes included.
-Two limits, both intentional:
+### How the endpoint is chosen
 
-- **No PTY** — an interactive `ssh -t` gets a piped shell without line editing
-  or job control. Use the system sshd path when a real terminal matters.
-- **No stdin forwarding** — commands run with an empty stdin. Wiring the session
-  into `exec.Cmd.Stdin` leaves Go's stdin copier parked when the child exits
-  without reading, `Wait` expires on `WaitDelay`, the `exit-status` request then
-  fails with `EOF` and the client hangs until it times out.
-
-
-On first run it downloads the `portal` v2.7.4 binary into the user cache. The
-agent announces one `tcp_addr` per relay in the public registry; **otd prints only
-an endpoint that completes a TCP dial *and* answers with an SSH banner**, so a
+On first run it downloads the `portal` v2.7.4 binary into the user cache, then
+announces one `tcp_addr` per relay in the public registry. **Only an endpoint
+that completes a TCP dial *and* answers with an SSH banner is printed**, so a
 dead relay or a cold `sshd` never reaches you:
 
 ```
@@ -212,25 +250,34 @@ dead relay or a cold `sshd` never reaches you:
 Tunnel: <id>.s-h.day:50003
 ```
 
-Paste that `host:port` into `opentunnel.exe` as usual — the local side is still
-plain `ssh`.
+Measured here: 23 MB download, 10-30 s to a validated endpoint, `gosunuts.xyz`
+consistently dead while `s-h.day` / `kakashit.org` work, public hostname stable
+per device and port changing between runs.
 
-Measured from this repo's machine: 23 MB download, ~20-30 s to a validated
-endpoint, one of the two registry relays (`gosunuts.xyz`) consistently dead, and
-the public hostname stays stable per device while the port changes between runs.
+### Limits
+
+- **No PTY** — interactive `ssh -t` gets a piped shell without line editing or
+  job control. Use the system sshd when a real terminal matters.
+- **No stdin forwarding** — commands run with an empty stdin; wiring the session
+  into `exec.Cmd.Stdin` leaves Go's stdin copier parked, `Wait` expires on
+  `WaitDelay`, the `exit-status` request fails with `EOF` and the client hangs.
+- **Same privileges as the process** — launch `otd` elevated if the commands
+  need it; anything reached through the tunnel is that account.
+- The address is public; the key is the only gate. Anyone with the private key
+  can run commands on that box while the tunnel is up.
 
 ---
 
-## Limits
+## Limits (Pinggy/bore path)
 
-- Free tunnels expire after 60 minutes and get a random address each time.
-- For persistent addresses: Pinggy Pro token or a self-hosted VPS relay (`ssh -R` with GatewayPorts) — same design.
+- Free Pinggy tunnels expire after 60 minutes and get a random address each time.
+- For persistent addresses use `otd` above (no expiry) or a self-hosted VPS relay (`ssh -R` with GatewayPorts).
 
 ---
 
 ## Requirements
 
-- Remote: Linux server or Windows with Admin/PowerShell
-- Remote: root/sudo (Linux) or Administrator (Windows)
+- Remote: `otd` needs no admin, no root and no sshd; `connect.sh`/`connect.ps1` do
+- Remote: root/sudo (Linux) or Administrator (Windows) for the Pinggy/bore path
 - Remote: outbound HTTPS (port 443)
 - Local: any `ssh` client (already installed everywhere)
